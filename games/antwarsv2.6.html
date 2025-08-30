@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Ant Wars — v9.5 (True Recovery, Clear Brood Gates)</title>
+<style>
+  :root{
+    --bg:#0b1020;--ui:#101826;--text:#e5e7eb;--sky:#9fd3ff;--grass:#2f7d32;
+    --soil:#5b3d28;--soil2:#6b4930;--tunnel:#1f1a13;--rock:#595959;
+    --player:#ef4444; --player2:#fecaca;
+    --nursery:#6ee7b7; --queen:#f0abfc; --larder:#fde68a; --refuse:#94a3b8;
+    --inactiveHatch:#00000055; --carb:#93c5fd; --prot:#fb7185;
+  }
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,Roboto,Inter,Arial,sans-serif;overflow:hidden}
+  #wrap{display:grid;grid-template-columns:480px 1fr;gap:10px;height:100vh;padding:10px;box-sizing:border-box}
+  #ui{background:var(--ui);border-radius:14px;padding:12px;display:grid;grid-template-rows:auto auto auto auto 1fr auto;gap:10px}
+  #game{position:relative;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.35);background:#0a1222}
+  canvas{display:block;width:100%;height:100%;border-radius:14px}
+  .tiny{font-size:12px;opacity:.95}
+  .kbd{padding:1px 6px;border:1px solid #334155;border-radius:6px;background:#0b1224;font-family:ui-monospace,Menlo,monospace}
+  .pill{padding:2px 6px;border-radius:999px;background:#0b1324;border:1px solid #223355}
+  .bar{height:8px;background:#0b1324;border:1px solid #22304a;border-radius:999px;overflow:hidden}
+  .bar>div{height:100%}
+  .obj{display:flex;gap:8px;align-items:start}
+  .obj .dot{width:10px;height:10px;border-radius:50%;margin-top:4px;background:#334155}
+  .obj.done .dot{background:#86efac}
+  .obj.cur .dot{background:#fde68a}
+  #goals{border:1px solid #22304a;border-radius:10px;padding:10px}
+  #hud{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  #status{opacity:.95;min-height:18px}
+  #debug{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:#0b1324;border:1px solid #21304f;border-radius:8px;padding:8px;white-space:pre;min-height:72px;max-height:140px;overflow:auto}
+  #feed{border:1px solid #21304f;border-radius:8px;padding:8px;background:#0b1324;min-height:110px;max-height:220px;overflow:auto}
+  #feed .item{font-size:12px;opacity:.95;margin-bottom:6px}
+  #feed .time{opacity:.65;margin-right:6px}
+  .panel{border:1px solid #22304a;border-radius:10px;padding:10px}
+  .kv{display:flex;justify-content:space-between;font-size:12px}
+  #legend .entry{display:flex;align-items:center;gap:8px;margin:4px 0}
+  #legend .icon{width:18px;height:18px;display:inline-block;position:relative}
+  #err{position:absolute;inset:0;background:rgba(0,0,0,.8);color:#fff;display:none;align-items:center;justify-content:center;padding:20px;text-align:left;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;font-size:14px}
+  #win{position:absolute;inset:0;background:rgba(0,0,0,.75);color:#fff;display:none;align-items:center;justify-content:center;text-align:center;padding:20px}
+  #prompt{position:absolute;left:8px;bottom:8px;background:#0b1324;border:1px solid #21304f;border-radius:8px;padding:6px 8px;font-size:12px;opacity:.95}
+  #diag{font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:1.35;background:#0b1324;border:1px solid #21304f;border-radius:8px;padding:8px;white-space:pre}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <aside id="ui">
+    <div class="tiny" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div><b>🐜 Ant Wars — v9.5</b> <span class="pill">True Recovery + Clear Brood Gates</span></div>
+      <div style="margin-left:auto;opacity:.8">Species: <b>Lasius niger</b></div>
+    </div>
+
+    <div class="tiny">
+      Move: <span class="kbd">WASD</span>/<span class="kbd">Arrows</span> • Dig: <span class="kbd">E</span> • Paint: <span class="kbd">R</span> • Scrape: <span class="kbd">X</span><br>
+      Rooms: <span class="kbd">1</span> Nursery, <span class="kbd">2</span> Queen, <span class="kbd">3</span> Larder, <span class="kbd">4</span> Refuse • Dig job: Left-click Dirt<br>
+      Forage/Deposit: <span class="kbd">F</span> • Plug entrance: <span class="kbd">P</span>
+    </div>
+
+    <div id="goals" class="panel">
+      <div style="font-weight:600;margin-bottom:6px">Goals</div>
+      <div id="goalsetTitle" class="tiny" style="opacity:.85;margin-bottom:6px"></div>
+      <div id="objectives"></div>
+    </div>
+
+    <div id="hud">
+      <div>
+        <div class="tiny">Queen Reserves</div>
+        <div class="bar"><div id="resBar" style="width:0%;background:linear-gradient(90deg,#f9a8d4,#fda4af)"></div></div>
+      </div>
+      <div>
+        <div class="tiny">Carbs (Energy) <span id="carbText" class="tiny" style="opacity:.8"></span></div>
+        <div class="bar"><div id="carbBar" style="width:0%;background:linear-gradient(90deg,#c7d2fe,var(--carb))"></div></div>
+      </div>
+      <div>
+        <div class="tiny">Protein (Brood) <span id="protText" class="tiny" style="opacity:.8"></span></div>
+        <div class="bar"><div id="protBar" style="width:0%;background:linear-gradient(90deg,#fecaca,var(--prot))"></div></div>
+      </div>
+      <div>
+        <div class="tiny">Workers</div>
+        <div class="bar"><div id="workerBar" style="width:0%;background:linear-gradient(90deg,#86efac,#4ade80)"></div></div>
+      </div>
+
+      <div class="panel" style="grid-column:1 / -1">
+        <div style="font-weight:600;margin-bottom:6px">Brood</div>
+        <div class="kv"><span>Eggs</span><span><b id="eggsVal">0</b></span></div>
+        <div class="bar" style="margin:4px 0 10px 0"><div id="eggProg" style="width:0%;background:linear-gradient(90deg,#e5e7eb,#d1d5db)"></div></div>
+        <div class="kv"><span>Larvae</span><span><b id="larvaeVal">0</b></span></div>
+        <div class="bar" style="margin:4px 0 10px 0"><div id="larvaProg" style="width:0%;background:linear-gradient(90deg,#fde68a,#facc15)"></div></div>
+        <div class="kv"><span>Workers (hatched)</span><span><b id="workersVal">0</b></span></div>
+        <div class="tiny" id="broodNote" style="margin-top:6px;opacity:.95"></div>
+      </div>
+
+      <div class="panel" id="legend" style="grid-column:1 / -1">
+        <div style="font-weight:600;margin-bottom:6px">Surface Legend</div>
+        <div class="entry"><span class="icon"><span style="position:absolute;left:4px;top:4px;width:4px;height:4px;background:#fff"></span><span style="position:absolute;left:9px;top:8px;width:4px;height:4px;background:#fff"></span></span><span class="tiny">Carbs — sugar/honeydew (white). Fuels queen & workers.</span></div>
+        <div class="entry"><span class="icon"><span style="position:absolute;left:8px;top:8px;width:8px;height:8px;border-radius:50%;background:#b45309"></span></span><span class="tiny">Protein — insect bits (brown pellet). Needed for brood.</span></div>
+        <div class="entry"><span class="icon"><span style="position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;border:1px solid #eab308"></span><span style="position:absolute;left:5px;top:5px;width:8px;height:8px;border-radius:50%;border:1px solid #eab308"></span></span><span class="tiny">Antlion pit — hazard.</span></div>
+        <div class="entry"><span class="icon"><span style="position:absolute;left:1px;top:4px;width:16px;height:10px;border-top:2px solid #94a3b8;border-bottom:2px solid #94a3b8"></span></span><span class="tiny">Ground spider — predator.</span></div>
+      </div>
+
+      <div class="panel" style="grid-column:1 / -1" id="diag"></div>
+
+      <div style="grid-column:1 / -1" class="tiny" id="status"></div>
+    </div>
+
+    <div id="debug"></div>
+
+    <div>
+      <div style="font-weight:600;margin:6px 0">Completed / Events</div>
+      <div id="feed"></div>
+    </div>
+  </aside>
+
+  <main id="game">
+    <canvas id="c"></canvas>
+    <div id="prompt" class="tiny" style="display:none"></div>
+    <div id="err"></div>
+    <div id="win"><div>
+      <h2>🎉 Colony Thriving!</h2>
+      <p>You completed all goal sets. Keep playing or refresh to start anew.</p>
+    </div></div>
+  </main>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- Crash catcher ---------- */
+const errBox=document.getElementById("err");
+window.addEventListener("error", e=>{ errBox.style.display="flex"; errBox.textContent="Runtime error:\\n\\n"+(e.error?(e.error.stack||e.error):e.message); });
+window.addEventListener("unhandledrejection", e=>{ errBox.style.display="flex"; errBox.textContent="Unhandled rejection:\\n\\n"+(e.reason?(e.reason.stack||e.reason):String(e.reason)); });
+
+/* ---------- Canvas/world ---------- */
+const canvas=document.getElementById("c"), ctx=canvas.getContext("2d");
+const CELL=16, W=96, H=64, SURFACE=18;
+function fit(){ canvas.width=W*CELL; canvas.height=H*CELL; } fit(); addEventListener("resize", fit);
+
+/* ---------- FEED ---------- */
+const feedEl=document.getElementById("feed"); const FEED=[];
+function feed(msg){ const t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}); FEED.unshift({t,msg}); if(FEED.length>70) FEED.pop(); feedEl.innerHTML=FEED.map(e=>`<div class="item"><span class="time">${e.t}</span>${e.msg}</div>`).join(""); }
+
+/* ---------- UI refs ---------- */
+const statusEl=document.getElementById("status"), debugEl=document.getElementById("debug"), promptEl=document.getElementById("prompt");
+const resBar=document.getElementById("resBar"), carbBar=document.getElementById("carbBar"), protBar=document.getElementById("protBar"), workerBar=document.getElementById("workerBar");
+const eggsVal=document.getElementById("eggsVal"), larvaeVal=document.getElementById("larvaeVal"), workersVal=document.getElementById("workersVal");
+const eggProg=document.getElementById("eggProg"), larvaProg=document.getElementById("larvaProg"), broodNote=document.getElementById("broodNote");
+const carbText=document.getElementById("carbText"), protText=document.getElementById("protText");
+const goalsetTitleEl=document.getElementById("goalsetTitle"), objectivesEl=document.getElementById("objectives"), winOverlay=document.getElementById("win");
+const diagEl=document.getElementById("diag");
+
+/* ---------- World ---------- */
+const Air=0, Dirt=1, Tunnel=2, Rock=3, RoomCell=4;
+const world=Array.from({length:H},()=>Array(W).fill(Dirt));
+const roomType=Array.from({length:H},()=>Array(W).fill(null));
+const roomActive=Array.from({length:H},()=>Array(W).fill(false));
+const lastActive=Array.from({length:H},()=>Array(W).fill(false));
+for(let y=0;y<SURFACE;y++) for(let x=0;x<W;x++) world[y][x]=Air;
+for(let i=0;i<300;i++){ const x=2+Math.floor(Math.random()*(W-4)); const y=SURFACE+Math.floor(Math.random()*(H-SURFACE-2)); world[y][x]=Rock; }
+const ENTX=Math.floor(W/2), ENTY=SURFACE; for(let y=SURFACE;y<SURFACE+6;y++) world[y][ENTX]=Tunnel;
+let entrancePlugged=false, usedPlugOnce=false;
+
+/* ---------- Rooms meta ---------- */
+const ROOMS={ nursery:{color:getVar("--nursery"),name:"Nursery",minArea:9},
+              queen:{color:getVar("--queen"),name:"Queen",minArea:25,unique:true},
+              larder:{color:getVar("--larder"),name:"Larder",minArea:9},
+              refuse:{color:getVar("--refuse"),name:"Refuse",minArea:4,needsSeparationFrom:["nursery","queen"]} };
+
+function inBounds(x,y){ return x>=0&&y>=0&&x<W&&y<H; }
+function passable(x,y){ if(!inBounds(x,y)) return false; if(entrancePlugged && ((x===ENTX&&y===ENTY)||(x===ENTX&&y===ENTY-1))) return false; const t=world[y][x]; return (y<SURFACE && t===Air)||t===Tunnel||t===RoomCell; }
+function getVar(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function setStatus(msg){ statusEl.textContent=msg; }
+
+/* ---------- Player & input ---------- */
+const player={ x:ENTX, y:ENTY+1, face:{x:1,y:0}, carry:null };
+const keys={}; const CONTROL=new Set(["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright","e","r","x","1","2","3","4","f","p"]);
+addEventListener("keydown",e=>{
+  const k=e.key.toLowerCase(); if(CONTROL.has(k)) e.preventDefault(); keys[k]=true;
+  if(k==="w"||k==="arrowup") player.face={x:0,y:-1};
+  if(k==="s"||k==="arrowdown") player.face={x:0,y:1};
+  if(k==="a"||k==="arrowleft") player.face={x:-1,y:0};
+  if(k==="d"||k==="arrowright") player.face={x:1,y:0};
+  if(k==="e") digInFront();
+  if(k==="r") paintRoomHere();
+  if(k==="x") scrapeRoomHere();
+  if(k==="f") interactCarry();
+  if(k==="p") togglePlug();
+  if(k==="1") currentRoom="nursery";
+  if(k==="2") currentRoom="queen";
+  if(k==="3") currentRoom="larder";
+  if(k==="4") currentRoom="refuse";
+},{passive:false});
+addEventListener("keyup",e=>{ const k=e.key.toLowerCase(); if(CONTROL.has(k)) e.preventDefault(); keys[k]=false; },{passive:false});
+function updatePlayer(){
+  if(keys["w"]||keys["arrowup"]){ if(passable(player.x,player.y-1)) player.y--; }
+  if(keys["s"]||keys["arrowdown"]){ if(passable(player.x,player.y+1)) player.y++; }
+  if(keys["a"]||keys["arrowleft"]){ if(passable(player.x-1,player.y)) player.x--; }
+  if(keys["d"]||keys["arrowright"]){ if(passable(player.x+1,player.y)) player.x++; }
+}
+function digInFront(){ const tx=player.x+player.face.x, ty=player.y+player.face.y; if(!inBounds(tx,ty)||ty<=SURFACE-1) return; if(world[ty][tx]===Dirt){ world[ty][tx]=Tunnel; progress.tunnelsDug++; } }
+function togglePlug(){ entrancePlugged=!entrancePlugged; usedPlugOnce=true; feed(entrancePlugged?"Entrance plugged.":"Entrance unplugged."); }
+
+/* ---------- Mouse dig jobs ---------- */
+const digJobs=[]; canvas.addEventListener("click",e=>{ const r=canvas.getBoundingClientRect(); const cx=Math.floor((e.clientX-r.left)/CELL), cy=Math.floor((e.clientY-r.top)/CELL); if(inBounds(cx,cy)&&cy>=SURFACE&&world[cy][cx]===Dirt){ digJobs.push({x:cx,y:cy}); setStatus("Dig job added."); feed(`Dig job at (${cx},${cy}).`);} });
+
+/* ---------- Rooms paint/scrape ---------- */
+let currentRoom="nursery";
+function paintRoomHere(){ const x=player.x,y=player.y,t=currentRoom; if(y<=SURFACE-1) return setStatus("Rooms only underground."); if(world[y][x]!==Tunnel) return setStatus("Stand on a Tunnel tile to paint."); world[y][x]=RoomCell; roomType[y][x]=t; recomputeRooms(); }
+function scrapeRoomHere(){ const x=player.x,y=player.y; if(world[y][x]===RoomCell){ const old=roomType[y][x]; world[y][x]=Tunnel; roomType[y][x]=null; roomActive[y][x]=false; recomputeRooms(); setStatus("Room tile removed."); feed(`Removed ${old} tile.`);} else setStatus("No room tile here."); }
+function floodGroup(sx,sy,type,seen){ const q=[[sx,sy]], out=[]; seen[sy][sx]=true; while(q.length){ const [x,y]=q.shift(); out.push([x,y]); for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const nx=x+dx, ny=y+dy; if(!inBounds(nx,ny)||ny<=SURFACE-1||seen[ny][nx]) continue; if(world[ny][nx]===RoomCell && roomType[ny][nx]===type){ seen[ny][nx]=true; q.push([nx,ny]); } } } return out; }
+function refuseSeparatedFromActiveSensitive(group){ for(const [x,y] of group){ for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const nx=x+dx, ny=y+dy; if(!inBounds(nx,ny)) continue; if(roomActive[ny][nx]&&(roomType[ny][nx]==="nursery"||roomType[ny][nx]==="queen")) return false; } } return true; }
+
+/* ---------- Queen persistence ---------- */
+let queenExists=false; let queenRoomActive=false;
+function recomputeRooms(){
+  for(let y=SURFACE;y<H;y++) for(let x=0;x<W;x++){ lastActive[y][x]=roomActive[y][x]; roomActive[y][x]=false; }
+  const seen=Array.from({length:H},()=>Array(W).fill(false));
+  const groups={nursery:[],queen:[],larder:[],refuse:[]};
+  for(let y=SURFACE;y<H;y++) for(let x=0;x<W;x++){ if(world[y][x]===RoomCell && roomType[y][x] && !seen[y][x]){ const t=roomType[y][x]; const g=floodGroup(x,y,t,seen); groups[t].push(g); } }
+
+  // Queen group winner
+  queenRoomActive=false;
+  let qWin=null,qSize=0;
+  for(const g of groups.queen){ if(g.length>=ROOMS.queen.minArea && g.length>qSize){ qWin=g; qSize=g.length; } }
+  if(qWin){
+    queenRoomActive=true;
+    for(const [x,y] of qWin) roomActive[y][x]=true;
+    const pos=centerOf(qWin);
+    if(!queenExists){ queen.place(qWin); queenExists=true; }
+    else { queen.x=pos.x; queen.y=pos.y; }
+  }
+
+  for(const t of ["nursery","larder"])
+    for(const g of groups[t]) if(g.length>=ROOMS[t].minArea) for(const [x,y] of g) roomActive[y][x]=true;
+
+  for(const g of groups.refuse)
+    if(g.length>=ROOMS.refuse.minArea && refuseSeparatedFromActiveSensitive(g))
+      for(const [x,y] of g) roomActive[y][x]=true;
+
+  for(let y=SURFACE;y<H;y++) for(let x=0;x<W;x++){
+    if(world[y][x]===RoomCell && roomType[y][x]){
+      if(roomActive[y][x] && !lastActive[y][x]) feed(`Activated ${roomType[y][x]} tile.`);
+      if(!roomActive[y][x] && lastActive[y][x]) feed(`Deactivated ${roomType[y][x]} tile.`);
+    }
+  }
+  refreshObjectives();
+}
+function centerOf(cells){ let sx=0,sy=0; for(const [x,y] of cells){ sx+=x; sy+=y; } return {x:Math.round(sx/cells.length), y:Math.round(sy/cells.length)}; }
+
+/* ---------- Items (surface) ---------- */
+const items=[]; let itemSpawnCounter=0, seeded=false;
+function ensureSurfaceMin(){
+  const MIN=12;
+  while(items.length<MIN){
+    const x=2+Math.floor(Math.random()*(W-4));
+    const type = (items.filter(i=>i.type==="carb").length <= items.filter(i=>i.type==="protein").length) ? "carb" : "protein";
+    items.push({x, y:SURFACE-1, type});
+  }
+}
+function spawnItemsTick(){
+  if(!seeded){ seeded=true; items.push({x:ENTX-3,y:SURFACE-1,type:"carb"}); items.push({x:ENTX+3,y:SURFACE-1,type:"protein"}); feed("Surface: initial sugar & protein available."); }
+  ensureSurfaceMin();
+  itemSpawnCounter++; if(itemSpawnCounter>=110){ itemSpawnCounter=0; const n=1+Math.floor(Math.random()*2); for(let k=0;k<n;k++){ const x=2+Math.floor(Math.random()*(W-4)); const y=SURFACE-1; items.push({x,y,type:Math.random()<0.6?"carb":"protein"}); } }
+}
+function interactCarry(){
+  const it=items.find(o=>o.x===player.x && o.y===player.y);
+  const onLarder=(world[player.y]?.[player.x]===RoomCell && roomType[player.y][player.x]==="larder" && roomActive[player.y][player.x]);
+  if(!player.carry && it){ player.carry={type:it.type}; items.splice(items.indexOf(it),1); setStatus(`Picked up ${it.type}.`); feed(`Picked up ${it.type}.`); }
+  else if(player.carry && onLarder){
+    if(player.carry.type==="carb"){ queen.carb=Math.min(queen.carbCap, queen.carb+1); progress.carbDeposited++; }
+    else { queen.prot=Math.min(queen.protCap, queen.prot+1); progress.protDeposited++; }
+    feed(`Deposited ${player.carry.type.toUpperCase()} (+1).`); player.carry=null; refreshObjectives();
+  } else if(player.carry){ setStatus("Carry to an ACTIVE Larder to deposit."); }
+}
+
+/* ---------- Queen & brood ---------- */
+const NANITIC_LIMIT=6;           // first 6 workers cheaper (1P 0C)
+const RESERVE_PER_PROT=1.2;
+const queen={
+  present:true,x:ENTX,y:ENTY+2,
+  reserves:40, carb:0, prot:0, carbCap:12, protCap:12,
+  eggs:0, larvae:0, hatchCount:0,
+  layCounter:0, eggCounter:0, larvaCounter:0, convertCounter:0, diseaseCounter:0, upkeepCounter:0,
+  place(cells){ const p=centerOf(cells); this.x=p.x; this.y=p.y; this.present=true; },
+  ensureProtein(units){
+    let need=units;
+    if(this.prot>=need){ this.prot-=need; return true; }
+    need -= this.prot; this.prot=0;
+    const cost = need*RESERVE_PER_PROT;
+    if(this.reserves>=cost){ this.reserves-=cost; feed("Queen converted reserves into protein (trophic eggs)."); return true; }
+    return false;
+  },
+  tick(){
+    // capacities scale with active larder size
+    const nActive=activeTiles("nursery"), lActive=activeTiles("larder");
+    this.carbCap=12+lActive*2; this.protCap=12+lActive*2;
+    // clamp to cap if cap shrank
+    this.carb=Math.min(this.carb,this.carbCap); this.prot=Math.min(this.prot,this.protCap);
+
+    const nurses=countWorkersByRole("nurse");
+    const speedNursery=Math.min(2,1+nActive/20);
+    const nurseBoost=Math.min(0.5,nurses*0.02);
+    const speedF=speedNursery+nurseBoost;
+
+    // Founding energy conversion
+    this.convertCounter++; if(this.convertCounter>=100){ this.convertCounter=0; if(this.reserves>0 && this.carb<this.carbCap){ this.reserves=Math.max(0,this.reserves-1); this.carb=Math.min(this.carbCap,this.carb+1.25); feed("Converted reserves into carbs."); } }
+
+    // Upkeep
+    this.upkeepCounter++; if(this.upkeepCounter>=100){ this.upkeepCounter=0; const drain=workers.length*0.4; this.carb=Math.max(0,this.carb - drain); }
+
+    let reasons=[];
+
+    // Lay eggs (requires nursery active)
+    if(queenExists && nActive>0){
+      this.layCounter+=0.75*speedF;
+      while(this.layCounter>=120 && this.carb>=1){ this.layCounter-=120; this.eggs++; this.carb-=1; feed("Queen laid an egg."); }
+      if(this.layCounter>=120 && this.carb<1) reasons.push("laying needs ≥1 carb");
+    } else if(queenExists && nActive===0){
+      reasons.push("nursery must be active (≥9)");
+    }
+
+    // Egg -> Larva (1P)
+    this.eggCounter+=1*speedF;
+    while(this.eggs>0 && this.eggCounter>=160){
+      if(this.ensureProtein(1)){ this.eggCounter-=160; this.eggs--; this.larvae++; feed("An egg developed into a larva."); }
+      else { reasons.push("egg→larva needs ≥1 protein"); break; }
+    }
+
+    // Larva -> Worker (nanitics cheaper)
+    this.larvaCounter+=1*speedF;
+    const nextP = this.hatchCount < NANITIC_LIMIT ? 1 : 2;
+    const nextC = this.hatchCount < NANITIC_LIMIT ? 0 : 1;
+    while(this.larvae>0 && this.larvaCounter>=240){
+      if(this.carb < nextC){ reasons.push(`larva→worker needs ≥${nextC} carb`); break; }
+      if(this.ensureProtein(nextP)){
+        this.larvaCounter-=240; this.larvae--;
+        if(nextC>0) this.carb-=nextC;
+        spawnWorkerNearQueen(); this.hatchCount++; feed("A worker ant emerged!"); refreshObjectives();
+      } else { reasons.push(`larva→worker needs ≥${nextP} protein`); break; }
+    }
+
+    // Disease (refuse helps)
+    this.diseaseCounter++; if(this.diseaseCounter>=300){ this.diseaseCounter=0; let chance=0.22; chance=Math.max(0.02,chance-activeTiles("refuse")*0.01); if(Math.random()<chance){ if(this.larvae>0){ this.larvae--; feed("⚠️ Disease: lost a larva."); } else if(this.eggs>0){ this.eggs--; feed("⚠️ Disease: lost an egg."); } } }
+
+    // UI
+    resBar.style.width=Math.min(100,(this.reserves/40)*100)+"%";
+    carbBar.style.width=Math.min(100,(this.carb/this.carbCap)*100)+"%"; protBar.style.width=Math.min(100,(this.prot/this.protCap)*100)+"%";
+    carbText.textContent=`${Math.floor(this.carb)}/${this.carbCap}`; protText.textContent=`${Math.floor(this.prot)}/${this.protCap}`;
+    workerBar.style.width=Math.min(100,(workers.length/30)*100)+"%";
+    eggsVal.textContent=this.eggs; larvaeVal.textContent=this.larvae; workersVal.textContent=workers.length;
+    eggProg.style.width=Math.min(100,(this.eggCounter%160)/160*100)+"%"; larvaProg.style.width=Math.min(100,(this.larvaCounter%240)/240*100)+"%";
+    broodNote.textContent = reasons.length ? ("Development paused: " + [...new Set(reasons)].join(" · ")) : "Brood progressing.";
+    renderDiagnostics(reasons, nextP, nextC);
+  }
+};
+function activeTiles(type){ let n=0; for(let y=SURFACE;y<H;y++) for(let x=0;x<W;x++) if(roomType[y][x]===type && roomActive[y][x]) n++; return n; }
+function anyActive(type){ return activeTiles(type)>0; }
+
+/* ---------- Workers & roles ---------- */
+const workers=[]; function countWorkersByRole(r){return workers.reduce((a,w)=>a+(w.role===r),0);}
+function spawnWorkerNearQueen(){ const p=findOpenNearby(queen.x,queen.y)||{x:queen.x,y:queen.y}; workers.push({x:p.x,y:p.y,role:"nurse",age:0,carry:null,path:[]}); }
+function findOpenNearby(sx,sy){ for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const nx=sx+dx, ny=sy+dy; if(passable(nx,ny)) return {x:nx,y:ny}; } return null; }
+function neighbors(x,y){ return [{x:x+1,y},{x:x-1,y},{x,y:y+1},{x,y:y-1}]; }
+function astar(sx,sy,tx,ty,limit=4000){ if(!passable(tx,ty)) return null; const key=(x,y)=>x+"_"+y; const open=[{x:sx,y:sy,g:0,f:0,p:null}]; const seen=new Map(); seen.set(key(sx,sy),0); const h=(x,y)=>Math.abs(tx-x)+Math.abs(ty-y); while(open.length&&limit--){ open.sort((a,b)=>a.f-b.f); const n=open.shift(); if(n.x===tx&&n.y===ty){ const path=[]; for(let c=n;c;c=c.p) path.push({x:c.x,y:c.y}); return path.reverse().slice(1); } for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const nx=n.x+dx, ny=n.y+dy; if(!passable(nx,ny)) continue; const g=n.g+1, k=key(nx,ny); if(!seen.has(k)||g<seen.get(k)){ seen.set(k,g); open.push({x:nx,y:ny,g,f:g+h(nx,ny),p:n}); } } } return null; }
+function assignRoles(){
+  const wantForagers=(queen.carb<queen.carbCap*0.6||queen.prot<queen.protCap*0.6)?Math.max(2,Math.floor(workers.length*0.5)):Math.floor(workers.length*0.3);
+  const wantDiggers=Math.min(3,Math.ceil(digJobs.length/2));
+  let curFor=countWorkersByRole("forager"), curDig=countWorkersByRole("digger");
+  for(const w of workers){
+    w.age++;
+    if(w.age<200){ w.role="nurse"; continue; }
+    if(curFor<wantForagers){ if(w.role!=="forager") w.role="forager"; curFor++; continue; }
+    if(curDig<wantDiggers){ if(w.role!=="digger") w.role="digger"; curDig++; continue; }
+    w.role="nurse";
+  }
+}
+function updateWorkers(){
+  assignRoles();
+  for(const w of workers){
+    switch(w.role){
+      case "nurse":{
+        const target=findAnyActiveTilePos("nursery")||{x:queen.x,y:queen.y};
+        wanderTowards(w,target.x,target.y);
+        break;
+      }
+      case "digger":{
+        if(!w.path||w.path.length===0){
+          let bestI=-1,bestD=1e9;
+          for(let i=0;i<digJobs.length;i++){ const j=digJobs[i]; const d=Math.abs(j.x-w.x)+Math.abs(j.y-w.y); if(d<bestD){bestD=d; bestI=i;} }
+          if(bestI>=0){
+            const job=digJobs[bestI]; const adj=neighbors(job.x,job.y).filter(p=>passable(p.x,p.y));
+            for(const p of adj){ const pth=astar(w.x,w.y,p.x,p.y); if(pth){ w.path=pth; w.targetJob=bestI; break; } }
+          } else { wander(w); }
+        } else {
+          const s=w.path.shift(); if(s){ w.x=s.x; w.y=s.y; }
+          if(w.path.length===0 && w.targetJob!=null){
+            const job=digJobs[w.targetJob];
+            if(job && world[job.y][job.x]===Dirt){ world[job.y][job.x]=Tunnel; progress.tunnelsDug++; feed(`Worker finished dig at (${job.x},${job.y}).`); }
+            if(job) digJobs.splice(w.targetJob,1);
+            w.targetJob=null;
+          }
+        }
+        break;
+      }
+      case "forager":{
+        const onLarder=(world[w.y]?.[w.x]===RoomCell && roomType[w.y][w.x]==="larder" && roomActive[w.y][w.x]);
+        if(w.carry && onLarder){
+          if(w.carry.type==="carb"){ queen.carb=Math.min(queen.carbCap, queen.carb+1); progress.carbDeposited++; }
+          else { queen.prot=Math.min(queen.protCap, queen.prot+1); progress.protDeposited++; }
+          feed(`Worker deposited ${w.carry.type.toUpperCase()} (+1).`); w.carry=null; refreshObjectives();
+        }
+        if(!w.carry){
+          let best=null,bestD=1e9;
+          for(const it of items){ const d=Math.abs(it.x-w.x)+Math.abs(it.y-w.y); if(d<bestD){bestD=d; best=it;} }
+          if(best){
+            if(!w.path||w.path.length===0){ const pth=astar(w.x,w.y,best.x,best.y); if(pth) w.path=pth; else wander(w); }
+            else { const s=w.path.shift(); if(s){ w.x=s.x; w.y=s.y; }
+              if(w.path.length===0){ const it=items.find(o=>o.x===w.x&&o.y===w.y); if(it){ w.carry={type:it.type}; items.splice(items.indexOf(it),1); } }
+            }
+          } else {
+            if(w.y>=SURFACE){ const pth=astar(w.x,w.y,ENTX,SURFACE-1); if(pth) w.path=pth; else wander(w); }
+            else { wander(w,true); }
+          }
+        } else {
+          const lpos=findAnyActiveTilePos("larder")||{x:queen.x,y:queen.y};
+          if(!w.path||w.path.length===0){ const pth=astar(w.x,w.y,lpos.x,lpos.y); if(pth) w.path=pth; else wander(w); }
+          else { const s=w.path.shift(); if(s){ w.x=s.x; w.y=s.y; } }
+        }
+        break;
+      }
+    }
+  }
+}
+function findAnyActiveTilePos(type){ for(let y=SURFACE;y<H;y++) for(let x=0;x<W;x++) if(roomActive[y][x] && roomType[y][x]===type) return {x,y}; return null; }
+function wander(w,wide=false){ const dirs=[[1,0],[-1,0],[0,1],[0,-1]]; const [dx,dy]=dirs[Math.floor(Math.random()*4)]; const nx=w.x+dx, ny=w.y+dy; if(passable(nx,ny)){ w.x=nx; w.y=ny; } else if(wide){ const nx2=w.x+(Math.random()<0.5?-1:1); if(passable(nx2,w.y)) w.x=nx2; } }
+function wanderTowards(w,tx,ty){ if(!w.path||w.path.length===0) w.path=astar(w.x,w.y,tx,ty)||[]; if(w.path.length>0){ const s=w.path.shift(); w.x=s.x; w.y=s.y; } }
+
+/* ---------- Recovery state & predators ---------- */
+const spiders=[], antlions=[]; let predatorCounter=0; let inRecovery=false;
+function updateRecoveryState(){
+  const now = (workers.length<3);
+  if(now!==inRecovery){
+    inRecovery=now;
+    if(inRecovery){
+      // purge existing hazards and predators
+      spiders.length=0; antlions.length=0;
+      feed("🔄 Recovery mode: predators cleared, surface refilled. Forage white CARBS to resume brood.");
+    } else {
+      feed("✅ Recovery complete: predators may return. Keep stocks up and swarm spiders (≥3).");
+    }
+  }
+}
+function spawnPredatorsTick(){
+  predatorCounter++;
+  if(inRecovery) return;                 // paused during recovery
+  if(workers.length>=5 && predatorCounter%300===0){
+    if(Math.random()<0.7){
+      const x=(Math.random()<0.5)?2:W-3, y=SURFACE-1;
+      spiders.push({x,y,dir:x<ENTX?1:-1,alive:true});
+      feed("⚠️ A ground spider is prowling the surface! (Plug with P or swarm ≥3)");
+    } else {
+      const x=2+Math.floor(Math.random()*(W-4)), y=SURFACE-1;
+      antlions.push({x,y}); feed("⚠️ An antlion pit formed near the surface!");
+    }
+  }
+}
+function updateSpiders(){
+  for(const s of spiders){
+    if(!s.alive || inRecovery) continue;
+    let target=null,best=1e9;
+    for(const w of workers){ if(w.y<SURFACE){ const d=Math.abs(w.x-s.x); if(d<best){best=d; target={x:w.x,y:w.y,type:"worker"}; } } }
+    if(player.y<SURFACE){ const d=Math.abs(player.x-s.x); if(d<best){best=d; target={x:player.x,y:player.y,type:"player"}; } }
+    if(target){ s.dir=target.x>s.x?1:-1; if(passable(s.x+s.dir,s.y)) s.x+=s.dir; } else { if(Math.random()<0.02) s.dir*=-1; if(passable(s.x+s.dir,s.y)) s.x+=s.dir; }
+
+    for(const w of workers){
+      if(w.y===s.y && w.x===s.x){
+        const swarm = workers.filter(u=>u.y===w.y && Math.abs(u.x-w.x)<=1).length;
+        if(swarm>=3){ s.alive=false; feed("🕷️ Spider was swarmed and driven off!"); progress.spidersRepelled++; }
+        else { const idx=workers.indexOf(w); if(idx>=0){ workers.splice(idx,1); feed("☠️ A worker was lost to a spider."); } }
+        break;
+      }
+    }
+    if(player.y===s.y && player.x===s.x){
+      const swarm = workers.filter(u=>u.y===player.y && Math.abs(u.x-player.x)<=1).length;
+      if(swarm>=3){ s.alive=false; feed("🕷️ Spider was swarmed and driven off by workers!"); progress.spidersRepelled++; }
+      else { if(player.carry){ player.carry=null; feed("Spider hit you! Dropped your load."); } player.x=ENTX; player.y=ENTY+1; setStatus("Bitten! Retreating underground."); }
+    }
+  }
+  for(let i=spiders.length-1;i>=0;i--) if(!spiders[i].alive) spiders.splice(i,1);
+}
+function updateAntlionHazards(){
+  if(inRecovery) return;
+  if(player.y===SURFACE-1){ const pit=antlions.find(p=>p.x===player.x && p.y===player.y); if(pit){ if(player.carry) player.carry=null; player.x=ENTX; player.y=ENTY+1; feed("⚠️ You slipped into an antlion pit—retreated underground."); } }
+  for(const w of workers){
+    if(w.y===SURFACE-1){ const pit=antlions.find(p=>p.x===w.x && p.y===w.y); if(pit){ if(Math.random()<0.5){ const idx=workers.indexOf(w); if(idx>=0){ workers.splice(idx,1); feed("☠️ A worker was lost to an antlion pit."); } } else { w.path=astar(w.x,w.y,ENTX,SURFACE)||[]; feed("A worker avoided an antlion and retreated."); } } }
+  }
+  if(Math.random()<0.005 && antlions.length>0){ antlions.shift(); feed("An antlion pit collapsed."); }
+}
+
+/* ---------- Goals ---------- */
+const progress={ tunnelsDug:0, carbDeposited:0, protDeposited:0, spidersRepelled:0, survivedTimer:0 };
+let currentSet=1; const doneState=new Map();
+const OBJS_SET1=[
+  { id:"queen",   text:"Activate a Queen’s Chamber (≥25 tiles).", check:()=>queenExists }, // queen persists
+  { id:"nursery", text:"Activate a Nursery (≥9 tiles).",          check:()=>anyActive("nursery") },
+  { id:"larder",  text:"Activate a Larder (≥9 tiles).",           check:()=>anyActive("larder") },
+  { id:"refuse",  text:"Activate a Refuse (≥4 tiles, separated).",check:()=>anyActive("refuse") },
+  { id:"workers", text:"Hatch 3 worker ants.",                    check:()=>queen.hatchCount>=3 },
+];
+const OBJS_SET2=[
+  { id:"depC", text:()=>`Deposit 12 CARBS (${progress.carbDeposited}/12).`, check:()=>progress.carbDeposited>=12 },
+  { id:"depP", text:()=>`Deposit 8 PROTEIN (${progress.protDeposited}/8).`, check:()=>progress.protDeposited>=8 },
+  { id:"w8",   text:()=>`Reach 8 workers (${workers.length}/8).`,            check:()=>workers.length>=8 },
+  { id:"n16",  text:()=>`Nursery: 16 active tiles (${activeTiles("nursery")}/16).`, check:()=>activeTiles("nursery")>=16 },
+  { id:"dig30",text:()=>`Dig 30 tunnel tiles (${progress.tunnelsDug}/30).`,  check:()=>progress.tunnelsDug>=30 },
+];
+const OBJS_SET3=[
+  { id:"repel", text:()=>`Repel a spider (${progress.spidersRepelled}/1).`,  check:()=>progress.spidersRepelled>=1 },
+  { id:"plug",  text:"Use entrance plug at least once.",                      check:()=>usedPlugOnce },
+  { id:"w15",   text:()=>`Reach 15 workers (${workers.length}/15).`,         check:()=>workers.length>=15 },
+  { id:"stock", text:()=>`Hold 10C/10P at once (now ${Math.floor(queen.carb)}/${Math.floor(queen.prot)}).`, check:()=>queen.carb>=10 && queen.prot>=10 },
+  { id:"safe",  text:()=>`Survive 60s without a worker death (${Math.floor(progress.survivedTimer/60)}s/60s).`, check:()=>progress.survivedTimer>=60 },
+];
+const OBJS_SET4=[
+  { id:"w25", text:()=>`Reach 25 workers (${workers.length}/25).`, check:()=>workers.length>=25 },
+  { id:"l18", text:()=>`Larder: 18 active tiles (${activeTiles("larder")}/18).`, check:()=>activeTiles("larder")>=18 },
+  { id:"reserves", text:"Drain founding reserves to 0 (transition to full foraging).", check:()=>queen.reserves<=0.1 },
+];
+function getSet(){ return currentSet===1?OBJS_SET1:currentSet===2?OBJS_SET2:currentSet===3?OBJS_SET3:OBJS_SET4; }
+function objText(o){ return typeof o.text==="function"?o.text():o.text; }
+function refreshObjectives(){
+  if(currentSet===1 && OBJS_SET1.every(o=>o.check())){ currentSet=2; feed("🎯 Goal set advanced: Early Foraging & Expansion."); }
+  if(currentSet===2 && OBJS_SET2.every(o=>o.check())){ currentSet=3; feed("🛡️ Goal set advanced: Defense & Stability."); }
+  if(currentSet===3 && OBJS_SET3.every(o=>o.check())){ currentSet=4; feed("🏗️ Goal set advanced: Maturity."); }
+  if(currentSet===4 && OBJS_SET4.every(o=>o.check())){ winOverlay.style.display="flex"; feed("🏆 Victory: Colony thriving!"); }
+  goalsetTitleEl.textContent = currentSet===1?"Set 1 — Founding":currentSet===2?"Set 2 — Early Foraging & Expansion":currentSet===3?"Set 3 — Defense & Stability":"Set 4 — Maturity";
+  const OBJS=getSet(); const states=OBJS.map(o=>o.check()); const firstUndone=states.indexOf(false);
+  objectivesEl.innerHTML=""; OBJS.forEach((o,i)=>{ const div=document.createElement("div"); div.className="obj "+(states[i]?"done":(i===firstUndone?"cur":"")); div.innerHTML=`<div class="dot"></div><div class="tiny">${objText(o)}</div>`; objectivesEl.appendChild(div); const was=doneState.get(o.id); if(was!==undefined && was!==states[i] && states[i]) feed(`Objective complete: ${objText(o)}`); doneState.set(o.id,states[i]); });
+}
+
+/* ---------- Diagnostics ---------- */
+function renderDiagnostics(reasons,nextP,nextC){
+  const nActive=activeTiles("nursery");
+  const lActive=activeTiles("larder");
+  const eggT=Math.floor(queen.eggCounter%160), larvT=Math.floor(queen.larvaCounter%240);
+  const rec = (inRecovery) ? "\\n[Recovery mode] Predators paused & cleared. Surface refills. Forage carbs (white) to resume brood." : "";
+  diagEl.textContent =
+`Brood diagnostics
+Nursery active tiles: ${nActive} ${nActive>=9?"✅":"❌"}
+Larder active tiles: ${lActive} ${lActive>=9?"✅":"❌"}
+Carbs: ${Math.floor(queen.carb)}/${queen.carbCap}  Protein: ${Math.floor(queen.prot)}/${queen.protCap}
+Next worker cost: ${nextP}P + ${nextC}C  (nanitics left: ${Math.max(0, NANITIC_LIMIT-queen.hatchCount)})
+EggTimer: ${eggT}/160  LarvaTimer: ${larvT}/240
+${reasons.length?("Paused: "+[...new Set(reasons)].join(" · ")):"All gates open."}${rec}`;
+}
+
+/* ---------- Prompt ---------- */
+function updatePrompt(){
+  let txt="";
+  const onLarder=(world[player.y]?.[player.x]===RoomCell && roomType[player.y][player.x]==="larder" && roomActive[player.y][player.x]);
+  const it=items.find(o=>o.x===player.x && o.y===player.y);
+  if(!player.carry && it) txt=`Press F to pick up ${it.type.toUpperCase()}`;
+  else if(player.carry && onLarder) txt=`Press F to deposit ${player.carry.type.toUpperCase()}`;
+  promptEl.style.display=txt? "block":"none";
+  if(txt) promptEl.textContent=txt;
+}
+
+/* ---------- Drawing ---------- */
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle=getVar("--sky"); ctx.fillRect(0,0,W*CELL,(SURFACE-2)*CELL);
+  ctx.fillStyle=getVar("--grass"); ctx.fillRect(0,(SURFACE-2)*CELL,W*CELL,CELL*2);
+  for(const it of items){ const x=it.x*CELL,y=it.y*CELL; if(it.type==="carb"){ ctx.fillStyle="#ffffff"; ctx.fillRect(x+5,y+6,4,4); ctx.fillRect(x+9,y+8,4,4);} else { ctx.fillStyle="#b45309"; ctx.beginPath(); ctx.arc(x+8,y+8,4,0,Math.PI*2); ctx.fill(); } }
+  for(const p of antlions) drawAntlionPit(p.x,p.y);
+  for(const s of spiders) if(s.alive) drawSpider(s.x,s.y);
+  for(let y=SURFACE;y<H;y++){ for(let x=0;x<W;x++){ const t=world[y][x];
+    if(t===Dirt){ ctx.fillStyle=((x+y)&1)?getVar("--soil"):getVar("--soil2"); ctx.fillRect(x*CELL,y*CELL,CELL,CELL); }
+    else if(t===Rock){ ctx.fillStyle=getVar("--rock"); ctx.fillRect(x*CELL,y*CELL,CELL,CELL); }
+    else if(t===Tunnel){ ctx.fillStyle=getVar("--tunnel"); ctx.fillRect(x*CELL,y*CELL,CELL,CELL); }
+    else if(t===RoomCell){ const rt=roomType[y][x]; ctx.fillStyle=ROOMS[rt]?.color||"#fff"; ctx.fillRect(x*CELL,y*CELL,CELL,CELL);
+      if(!roomActive[y][x]){ ctx.strokeStyle=getVar("--inactiveHatch"); ctx.lineWidth=1; ctx.beginPath();
+        ctx.moveTo(x*CELL,y*CELL+CELL*0.3); ctx.lineTo(x*CELL+CELL*0.3,y*CELL);
+        ctx.moveTo(x*CELL+CELL*0.4,y*CELL+CELL); ctx.lineTo(x*CELL+CELL,y*CELL+CELL*0.4);
+        ctx.moveTo(x*CELL,y*CELL+CELL*0.7); ctx.lineTo(x*CELL+CELL*0.7,y*CELL); ctx.stroke(); } }
+  } }
+  if(entrancePlugged){ ctx.fillStyle="#cbd5e1aa"; ctx.fillRect(ENTX*CELL,ENTY*CELL-2,CELL,CELL+4); }
+  ctx.fillStyle="#e5e7eb"; digJobs.forEach(j=>{ ctx.fillRect(j.x*CELL+CELL/2-1,j.y*CELL+3,2,CELL-6); ctx.fillRect(j.x*CELL+CELL/2-4,j.y*CELL+5,8,2); });
+  for(const w of workers){ drawAnt(w.x,w.y,false); if(w.carry){ ctx.fillStyle=w.carry.type==="carb"?"#fff":"#b45309"; ctx.fillRect(w.x*CELL+3,w.y*CELL+3,4,4); } }
+  if(queenExists) drawQueen(queen.x,queen.y);
+  drawAnt(player.x,player.y,true); if(player.carry){ ctx.fillStyle=player.carry.type==="carb"?"#fff":"#b45309"; ctx.fillRect(player.x*CELL+3,player.y*CELL+3,4,4); }
+  ctx.fillStyle="#1f2937aa"; ctx.fillRect(0,SURFACE*CELL-2,W*CELL,4);
+  debugEl.textContent=`YOU @ (${player.x},${player.y}) carry:${player.carry?player.carry.type:"—"} plug:${entrancePlugged?"ON":"OFF"}
+res:${queen.reserves.toFixed(1)} carb:${queen.carb.toFixed(1)}/${queen.carbCap} prot:${queen.prot.toFixed(1)}/${queen.protCap}
+eggs:${queen.eggs} larvae:${queen.larvae} workers:${workers.length}
+Active — Q:${queenRoomActive?1:0} N:${activeTiles("nursery")} L:${activeTiles("larder")} R:${activeTiles("refuse")}
+Deposited: C${progress.carbDeposited} / P${progress.protDeposited}  Dug:${progress.tunnelsDug}  Spiders:${spiders.length} Pits:${antlions.length}`;
+}
+function drawAnt(gx,gy,highlight=false){ const x=gx*CELL+CELL/2,y=gy*CELL+CELL/2,seg=CELL*0.24,ab=seg*1.3,hd=seg*0.9; if(highlight){ ctx.save(); ctx.shadowColor=getVar("--player"); ctx.shadowBlur=12; ctx.strokeStyle=getVar("--player"); ctx.lineWidth=2; ctx.strokeRect(gx*CELL+2,gy*CELL+2,CELL-4,CELL-4); ctx.shadowBlur=0; ctx.restore(); ctx.fillStyle=getVar("--player"); ctx.font="11px ui-monospace,Menlo,monospace"; ctx.fillText("YOU", gx*CELL+2, gy*CELL-3); } ctx.strokeStyle=getVar("--player2"); ctx.lineWidth=1.6; ctx.beginPath(); for(let i=-1;i<=1;i++){ const ly=y+i*seg; ctx.moveTo(x- seg,ly);ctx.lineTo(x- seg*2.0,ly- seg*0.8); ctx.moveTo(x- seg,ly);ctx.lineTo(x- seg*2.0,ly+ seg*0.8); ctx.moveTo(x+ seg,ly);ctx.lineTo(x+ seg*2.0,ly- seg*0.8); ctx.moveTo(x+ seg,ly);ctx.lineTo(x+ seg*2.0,ly+ seg*0.8);} ctx.stroke(); ctx.fillStyle=getVar("--player2"); ctx.beginPath(); ctx.ellipse(x- seg*1.5,y,ab,ab*0.8,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle=getVar("--player"); ctx.beginPath(); ctx.ellipse(x,y,seg,seg*0.9,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(x+ seg*1.4,y,hd,hd*0.8,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.moveTo(x+ seg*2,y- seg*0.4); ctx.lineTo(x+ seg*3, y- seg*1.0); ctx.moveTo(x+ seg*2,y+ seg*0.4); ctx.lineTo(x+ seg*3, y+ seg*1.0); ctx.stroke(); }
+function drawQueen(gx,gy){ const x=gx*CELL+CELL/2,y=gy*CELL+CELL/2,seg=CELL*0.28,ab=seg*1.6,hd=seg*1.0; ctx.fillStyle="rgba(255,255,255,0.25)"; ctx.beginPath(); ctx.ellipse(x,y- seg*1.5,seg*1.8,seg*0.9,Math.PI/10,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(x,y+ seg*1.5,seg*1.8,seg*0.9,-Math.PI/10,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle="#f9a8d4"; ctx.beginPath(); ctx.ellipse(x- seg*1.5,y,ab,ab*0.85,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(x,y,seg,seg*0.95,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(x+ seg*1.4,y,hd,hd*0.85,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle="#f9a8d4"; ctx.font="11px ui-monospace,Menlo,monospace"; ctx.fillText("QUEEN", gx*CELL+2, gy*CELL-3); }
+function drawSpider(gx,gy){ const x=gx*CELL+CELL/2,y=gy*CELL+CELL/2,seg=CELL*0.22; ctx.strokeStyle="#94a3b8"; ctx.lineWidth=1.6; ctx.beginPath(); for(let i=-1;i<=1;i++){ const ly=y+i*seg; ctx.moveTo(x- seg,ly);ctx.lineTo(x- seg*2.2,ly- seg*0.9); ctx.moveTo(x- seg,ly);ctx.lineTo(x- seg*2.2,ly+ seg*0.9); ctx.moveTo(x+ seg,ly);ctx.lineTo(x+ seg*2.2,ly- seg*0.9); ctx.moveTo(x+ seg,ly);ctx.lineTo(x+ seg*2.2,ly+ seg*0.9);} ctx.stroke(); ctx.fillStyle="#94a3b8"; ctx.beginPath(); ctx.ellipse(x- seg*1.4,y, seg*1.2, seg*0.9,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(x+ seg*1.2,y, seg*0.9, seg*0.7,0,0,Math.PI*2); ctx.fill(); }
+function drawAntlionPit(gx,gy){ const x=gx*CELL+CELL/2,y=gy*CELL+CELL/2,r=CELL*0.45; ctx.strokeStyle="#eab308"; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke(); ctx.beginPath(); ctx.arc(x,y,r*0.6,0,Math.PI*2); ctx.stroke(); ctx.beginPath(); ctx.arc(x,y,r*0.3,0,Math.PI*2); ctx.stroke(); }
+
+/* ---------- Loop ---------- */
+let last=performance.now(), acc=0, STEP=80, safeTickCounter=0;
+function frame(now){
+  const dt=now-last; last=now; acc+=dt;
+  while(acc>=STEP){
+    updateRecoveryState();
+    updatePlayer();
+    queen.tick();
+    updateWorkers();
+    spawnItemsTick();
+    spawnPredatorsTick();
+    updateSpiders();
+    updateAntlionHazards();
+    safeTickCounter++; if(safeTickCounter>=12){ safeTickCounter=0; progress.survivedTimer++; }
+    acc-=STEP;
+  }
+  draw();
+  updatePrompt();
+  refreshObjectives();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ---------- Init ---------- */
+recomputeRooms();
+setStatus("Tip: White = CARBS (energy). Brown pellet = PROTEIN (brood). In recovery, predators vanish—stock carbs to restart hatching. Plug with P.");
+feed("Colony founded.");
+
+})();
+</script>
+</body>
+</html>
