@@ -1,69 +1,183 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>GOATGAMEZ — Tiny Web Games</title>
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
-  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
-  <meta name="theme-color" content="#0b0f1a">
-  <style>
-    :root{{--bg:#0b0f1a;--card:#11182b;--text:#e8f0ff;--muted:#9db7ff22;--accent:#ffd54a;}}
-    *{{box-sizing:border-box}} html,body{{height:100%;margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,Segoe UI,Roboto,Arial,sans-serif}}
-    a{{color:inherit;text-decoration:none}}
-    header{{display:flex;gap:12px;align-items:center;justify-content:center;padding:26px 14px;border-bottom:1px solid #203050}}
-    header img{{width:64px;height:64px;image-rendering:pixelated}}
-    h1{{margin:0;font-size:clamp(22px,4vw,36px);letter-spacing:.5px}}
-    .grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;padding:18px;max-width:1100px;margin:0 auto}}
-    .card{{background:var(--card);border:1px solid #203050;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 12px 32px #0006}}
-    .thumb{{aspect-ratio:16/10;background:linear-gradient(180deg,#0e1627,#0a0e18);display:flex;align-items:center;justify-content:center;border-bottom:1px solid #203050}}
-    .thumb span{{opacity:.9;font-weight:700;letter-spacing:.3px;background:var(--muted);padding:6px 10px;border-radius:10px}}
-    .body{{padding:14px;display:flex;gap:10px;flex-direction:column}}
-    .body h3{{margin:.2em 0;font-size:18px}}
-    .body p{{margin:0;opacity:.9}}
-    .row{{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}}
-    .btn{{flex:1 1 auto;cursor:pointer;border:1px solid #2a3f64;background:#18263f;color:#aee0ff;border-radius:12px;padding:10px 12px;text-align:center;font-weight:600}}
-    .btn:hover{{filter:brightness(1.06)}}
-    footer{{padding:20px;text-align:center;opacity:.7;border-top:1px solid #203050}}
-    .badge{{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;background:#0e1a33;border:1px solid #2a3f64;padding:2px 8px;border-radius:999px;font-size:12px;opacity:.9}}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GOATGAMEZ — Play Free Web Games</title>
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="theme-color" content="#0a0f1f">
+<style>
+  :root{
+    --bg:#0a0f1f;
+    --panel:#0f1730;
+    --panel-2:#141e3d;
+    --text:#eef4ff;
+    --muted:#b9c8ff;
+    --brand:#53f19c;
+    --brand-2:#3dd6ff;
+    --accent:#ffd54a;
+    --card:#0f1730;
+    --border:#24345a;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
+    font:15px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+  a{color:inherit;text-decoration:none}
+  /* Header */
+  .topbar{
+    position:sticky;top:0;z-index:40;
+    background:linear-gradient(90deg,var(--panel),var(--panel-2));
+    border-bottom:1px solid var(--border);
+    display:grid;grid-template-columns:auto 1fr auto;gap:14px;
+    align-items:center;padding:10px 14px;
+  }
+  .brand{display:flex;gap:10px;align-items:center}
+  .brand img{width:44px;height:44px;image-rendering:pixelated}
+  .brand .title{font-weight:800;letter-spacing:0.5px;font-size:20px}
+  .controls{display:flex;gap:10px;align-items:center}
+  .search{display:flex;align-items:center;background:#0b1330;border:1px solid var(--border);border-radius:999px;padding:6px 10px;min-width:230px}
+  .search input{flex:1;border:0;outline:0;background:transparent;color:var(--text);font-size:14px}
+  .select{border:1px solid var(--border);background:#0c1738;border-radius:999px;color:var(--text);padding:6px 10px}
+  .tags{display:flex;gap:8px;flex-wrap:wrap}
+  .tag{padding:6px 10px;border:1px solid var(--border);border-radius:999px;background:#0c1738;cursor:pointer;user-select:none}
+  .tag.active{border-color:#3fa6ff;background:#0e2152}
+  /* Hero */
+  .hero{max-width:1100px;margin:16px auto 8px;padding:0 14px}
+  .hero .banner{background:linear-gradient(135deg,#10224b,#0e1b38 60%,#0a1330);
+    border:1px solid var(--border);border-radius:18px;padding:16px;display:flex;gap:16px;align-items:center}
+  .hero .banner .goat{width:64px;height:64px;image-rendering:pixelated}
+  .hero h1{margin:.1em 0 .2em 0;font-size:clamp(20px,3.6vw,32px)}
+  .hero p{margin:0;color:var(--muted)}
+  /* Grid */
+  .wrap{max-width:1100px;margin:0 auto;padding:0 14px 22px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;transition:transform .12s ease, box-shadow .12s ease}
+  .card:hover{transform:translateY(-2px);box-shadow:0 16px 40px #0008}
+  .thumb{aspect-ratio:16/10;background:radial-gradient(100% 100% at 100% 0%, #142657 0%, #0b1431 60%, #091028 100%);
+    display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--border);position:relative}
+  .thumb .badge{position:absolute;left:8px;top:8px;font-size:12px;background:#0e1a36;border:1px solid #305; padding:3px 8px;border-radius:999px;opacity:.9}
+  .thumb span{font-weight:800;letter-spacing:.3px;opacity:.95}
+  .body{padding:12px;display:flex;flex-direction:column;gap:6px}
+  .body h3{margin:0;font-size:17px;line-height:1.2}
+  .body p{margin:0;color:var(--muted);font-size:13px}
+  .row{display:flex;gap:8px;margin-top:6px}
+  .btn{flex:1;border:1px solid var(--border);background:#12224b;color:#dff1ff;border-radius:10px;padding:9px 10px;text-align:center;font-weight:700;cursor:pointer}
+  .btn.play{background:linear-gradient(90deg,#1f864f,#1766ac);border:0;color:white}
+  .empty{opacity:.7;text-align:center;padding:30px 0}
+  footer{padding:16px;text-align:center;border-top:1px solid var(--border);opacity:.8}
+  .hidden{display:none !important}
+</style>
 </head>
 <body>
-  <header>
-    <img src="assets/logo.png" alt="GOATGAMEZ pixel goat">
-    <div>
-      <h1>GOATGAMEZ</h1>
-      <div class="badge">goatgamez.com</div>
+  <div class="topbar">
+    <div class="brand">
+      <img src="assets/logo.png" alt="GOATGAMEZ logo">
+      <div class="title">GOATGAMEZ</div>
     </div>
-  </header>
+    <div class="controls">
+      <div class="search"><input id="q" placeholder="Search games…"></div>
+      <select id="sort" class="select">
+        <option value="featured">Featured</option>
+        <option value="az">A → Z</option>
+        <option value="new">Newest</option>
+      </select>
+    </div>
+    <div class="tags">
+      <div class="tag active" data-tag="all">All</div>
+      <div class="tag" data-tag="action">Action</div>
+      <div class="tag" data-tag="survival">Survival</div>
+      <div class="tag" data-tag="builder">Builder</div>
+      <div class="tag" data-tag="2player">2-Player</div>
+    </div>
+  </div>
 
-  <main class="grid">
-    <article class="card">
-      <div class="thumb"><span>MiniCraft 2D</span></div>
-      <div class="body">
-        <h3>MiniCraft 2D — Ultra GFX + Night Fix</h3>
-        <p>WASD to move • Left-click break • Right-click place • E inventory • 1–6 hotbar.</p>
-        <div class="row">
-          <a class="btn" href="games/minicraft.html">Play</a>
-          <a class="btn" href="games/minicraft.html" target="_blank" rel="noopener">Open in new tab</a>
-        </div>
+  <section class="hero">
+    <div class="banner">
+      <img class="goat" src="assets/logo.png" alt="Pixel goat">
+      <div>
+        <h1>Play Free Browser Games</h1>
+        <p>Quick, cozy, no-install games. New titles dropping regularly.</p>
       </div>
-    </article>
+    </div>
+  </section>
 
-    <article class="card">
-      <div class="thumb"><span>Split-Screen Survivors</span></div>
-      <div class="body">
-        <h3>Split-Screen Survivors — V23</h3>
-        <p>1–2 players • WASD/Arrows • Pick up X/Click • Brownie B • Black invis Q/Z.</p>
-        <div class="row">
-          <a class="btn" href="games/split-survivors.html">Play</a>
-          <a class="btn" href="games/split-survivors.html" target="_blank" rel="noopener">Open in new tab</a>
-        </div>
-      </div>
-    </article>
-  </main>
+  <div class="wrap">
+    <div id="grid" class="grid"></div>
+    <div id="empty" class="empty hidden">No games match your search.</div>
+  </div>
 
-  <footer>© 2025 GOATGAMEZ — tiny games by the fam 🐐🎮</footer>
+  <footer>© 2025 GOATGAMEZ</footer>
+
+  <script>
+    const GAMES = [
+      {
+        id:'minicraft',
+        title:'MiniCraft 2D — Ultra GFX + Night Fix',
+        href:'games/minicraft.html',
+        blurb:'Mine, craft, and survive. WASD • L-click break • R-click place • E inventory.',
+        tags:['builder','survival'],
+        featured:true,
+        added:'2025-08-30'
+      },
+      {
+        id:'split',
+        title:'Split-Screen Survivors — V23',
+        href:'games/split-survivors.html',
+        blurb:'1–2 players • WASD/Arrows • X/Click pick up • Brownie: B • Black Invis: Q/Z',
+        tags:['action','survival','2player'],
+        featured:true,
+        added:'2025-08-30'
+      },
+    ];
+
+    const grid=document.getElementById('grid');
+    const emptyEl=document.getElementById('empty');
+    const q=document.getElementById('q');
+    const sort=document.getElementById('sort');
+    const tagEls=[...document.querySelectorAll('.tag')];
+    let activeTag='all';
+
+    function render(){
+      grid.innerHTML='';
+      let list=GAMES.slice();
+      if(activeTag!=='all') list=list.filter(g=>g.tags.includes(activeTag));
+      const s=(q.value||'').trim().toLowerCase();
+      if(s) list=list.filter(g=>(g.title+g.blurb).toLowerCase().includes(s));
+      if(sort.value==='az') list.sort((a,b)=>a.title.localeCompare(b.title));
+      else if(sort.value==='new') list.sort((a,b)=>(b.added||'').localeCompare(a.added||''));
+      else list.sort((a,b)=>(b.featured?1:0)-(a.featured?1:0));
+
+      emptyEl.classList.toggle('hidden',list.length>0);
+      for(const g of list){
+        const card=document.createElement('article');
+        card.className='card';
+        card.innerHTML=`
+          <div class="thumb">
+            <div class="badge">${g.tags.slice(0,2).join(' • ')}</div>
+            <span>${g.id.toUpperCase()}</span>
+          </div>
+          <div class="body">
+            <h3>${g.title}</h3>
+            <p>${g.blurb}</p>
+            <div class="row">
+              <a class="btn play" href="${g.href}">Play</a>
+              <a class="btn" target="_blank" rel="noopener" href="${g.href}">New tab</a>
+            </div>
+          </div>`;
+        grid.appendChild(card);
+      }
+    }
+
+    q.addEventListener('input',render);
+    sort.addEventListener('change',render);
+    tagEls.forEach(t=>t.addEventListener('click',()=>{
+      tagEls.forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');activeTag=t.dataset.tag;render();
+    }));
+
+    render();
+  </script>
 </body>
 </html>
