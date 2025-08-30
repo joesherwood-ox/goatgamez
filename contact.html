@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Contact — GOATGAMEZ</title>
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="theme-color" content="#0a0f1f">
+<style>
+  :root{--bg:#0a0f1f;--panel:#0f1730;--text:#eef4ff;--muted:#b9c8ff;--border:#24345a;--brand:#3dd6ff;}
+  *{box-sizing:border-box} html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font:15px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,Arial}
+  a{color:inherit;text-decoration:none}
+  .top{display:flex;gap:10px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);
+       background:linear-gradient(90deg,#0f1730,#141e3d)}
+  .top img{width:36px;height:36px;image-rendering:pixelated}
+  .wrap{max-width:760px;margin:22px auto;padding:0 16px}
+  h1{margin:.2em 0 .5em 0}
+  .card{background:#0f1730;border:1px solid var(--border);border-radius:16px;padding:16px}
+  label{display:block;margin:10px 0 6px 2px;color:var(--muted)}
+  input,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:#0c1738;color:var(--text)}
+  textarea{min-height:140px;resize:vertical}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .btn{cursor:pointer;border:1px solid var(--border);background:#12224b;color:#dff1ff;border-radius:10px;padding:10px 14px;font-weight:700}
+  .btn.primary{background:linear-gradient(90deg,#1f864f,#1766ac);border:0;color:#fff}
+  .note{font-size:13px;color:var(--muted);margin-top:8px}
+  .ok{display:none;margin-top:10px;color:#64f0a6}
+</style>
+</head>
+<body>
+  <header class="top">
+    <a href="index.html"><img src="assets/logo.png" alt="GOATGAMEZ"></a>
+    <strong>GOATGAMEZ</strong>
+    <div style="margin-left:auto"><a href="index.html" class="btn">← Back to games</a></div>
+  </header>
+
+  <main class="wrap">
+    <h1>Contact us</h1>
+    <p class="note">Have a game idea or feedback? Send us a message below.</p>
+
+    <div class="card">
+      <!-- Pick ONE of the two actions below (FormSubmit or Formspree) and replace the placeholder -->
+      <!-- Option A — FormSubmit (no JS needed). Replace YOU@EXAMPLE.COM with your email or your FormSubmit hash. -->
+      <!-- <form id="f" action="https://formsubmit.co/YOU@EXAMPLE.COM" method="POST"> -->
+
+      <!-- Option B — Formspree. Replace XXXXXXXX with your form ID. -->
+      <form id="f" action="https://formspree.io/f/XXXXXXXX" method="POST">
+        <!-- Common fields -->
+        <div class="row">
+          <div style="flex:1 1 260px">
+            <label for="name">Your name</label>
+            <input id="name" name="name" required>
+          </div>
+          <div style="flex:1 1 260px">
+            <label for="email">Email</label>
+            <input id="email" name="_replyto" type="email" required>
+          </div>
+        </div>
+
+        <label for="subject">Subject</label>
+        <input id="subject" name="subject" placeholder="New game idea / Feedback">
+
+        <label for="message">Message</label>
+        <textarea id="message" name="message" required></textarea>
+
+        <!-- Spam honeypot -->
+        <input type="text" name="_gotcha" style="display:none">
+
+        <!-- (FormSubmit optional) redirect after submit -->
+        <!-- <input type="hidden" name="_next" value="https://goatgamez.com/contact.html#thanks"> -->
+
+        <div class="row" style="margin-top:12px">
+          <button class="btn" type="reset">Reset</button>
+          <button class="btn primary" type="submit">Send message</button>
+        </div>
+        <div id="ok" class="ok">Thanks! Your message was sent.</div>
+        <div class="note">We typically reply within 1–2 days.</div>
+      </form>
+    </div>
+  </main>
+
+<script>
+  // For Formspree: show inline success without leaving the page.
+  const form = document.getElementById('f');
+  const ok = document.getElementById('ok');
+  form.addEventListener('submit', async (e) => {
+    const useFetch = form.action.includes('formspree.io');
+    if(!useFetch) return; // Let FormSubmit do a normal POST/redirect
+    e.preventDefault();
+    const data = new FormData(form);
+    const r = await fetch(form.action, { method: 'POST', body: data, headers: { 'Accept': 'application/json' }});
+    if (r.ok) { ok.style.display='block'; form.reset(); }
+    else { alert('Error sending message. Please try again.'); }
+  });
+
+  // If user arrives with #thanks (FormSubmit redirect), show success.
+  if (location.hash === '#thanks') { document.getElementById('ok').style.display='block'; }
+</script>
+</body>
+</html>
