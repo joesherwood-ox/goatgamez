@@ -138,9 +138,9 @@
     {
       id:'mouse-brainz',
       title:'Mouse Brainz',
-      href:'games/mousebrainsv3.5.html',            // <-- make sure this matches your actual filename
+      href:'games/mousebrainsv3.5.html',       // make sure this matches the actual filename
       blurb:'Quick-reflex maze action. Eat, dodge, escape!',
-      img:'assets/thumbnails/mouse-brainz.png',  // <-- temporary: you can reuse another thumbnail until we make one
+      img:'assets/thumbnails/mouse-brainz.png',// use a real file or temporarily reuse another thumbnail
       tags:['action','puzzle'],
       featured:false,
       added:'2025-08-30'
@@ -150,17 +150,14 @@
     {
       id:'ant-warz',
       title:'Ant Warz',
-      href:'games/antwarsv2.6.html',                // <-- make sure this matches your actual filename
+      href:'games/antwarsv2.6.html',           // make sure this matches the actual filename
       blurb:'Command your colony. Gather, build, defend.',
-      img:'assets/thumbnails/ant-warz.png',      // <-- temporary: reuse a thumbnail until we make one
+      img:'assets/thumbnails/ant-warz.png',    // use a real file or temporarily reuse another thumbnail
       tags:['strategy','builder'],
       featured:false,
       added:'2025-08-30'
     },
   ];
-
-  // (keep the rest of your script exactly the same)
-</script>
 
   const grid=document.getElementById('grid');
   const emptyEl=document.getElementById('empty');
@@ -192,7 +189,7 @@
       card.className='card';
       card.innerHTML=`
         <div class="thumb">
-          <img src="${g.img}" alt="${g.title}" 
+          <img src="${g.img}" alt="${g.title}"
                style="width:100%;height:100%;object-fit:cover;display:block;">
           <div class="badge">${g.tags.slice(0,2).join(' • ')}</div>
         </div>
