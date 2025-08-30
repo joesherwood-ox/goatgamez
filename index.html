@@ -112,12 +112,13 @@
 
 <script>
   const GAMES = [
+    // Existing games
     {
       id:'minicraft',
       title:'MiniCraft 2D — Ultra GFX + Night Fix',
       href:'games/minicraft.html',
       blurb:'Mine, craft, and survive. WASD • L-click break • R-click place • E inventory.',
-      img:'assets/thumbnails/minicraft.png',   // 👈 thumbnail
+      img:'assets/thumbnails/minicraft.png',
       tags:['builder','survival'],
       featured:true,
       added:'2025-08-30'
@@ -127,12 +128,39 @@
       title:'Split-Screen Survivors — V23',
       href:'games/split-survivors.html',
       blurb:'1–2 players • WASD/Arrows • X/Click pick up • Brownie: B • Black Invis: Q/Z',
-      img:'assets/thumbnails/split-survivors.png',   // 👈 thumbnail
+      img:'assets/thumbnails/split-survivors.png',
       tags:['action','survival','2player'],
       featured:true,
       added:'2025-08-30'
     },
+
+    // NEW: Mouse Brainz
+    {
+      id:'mouse-brainz',
+      title:'Mouse Brainz',
+      href:'games/mousebrainsv3.5.html',            // <-- make sure this matches your actual filename
+      blurb:'Quick-reflex maze action. Eat, dodge, escape!',
+      img:'assets/thumbnails/mouse-brainz.png',  // <-- temporary: you can reuse another thumbnail until we make one
+      tags:['action','puzzle'],
+      featured:false,
+      added:'2025-08-30'
+    },
+
+    // NEW: Ant Warz
+    {
+      id:'ant-warz',
+      title:'Ant Warz',
+      href:'games/antwarsv2.6.html',                // <-- make sure this matches your actual filename
+      blurb:'Command your colony. Gather, build, defend.',
+      img:'assets/thumbnails/ant-warz.png',      // <-- temporary: reuse a thumbnail until we make one
+      tags:['strategy','builder'],
+      featured:false,
+      added:'2025-08-30'
+    },
   ];
+
+  // (keep the rest of your script exactly the same)
+</script>
 
   const grid=document.getElementById('grid');
   const emptyEl=document.getElementById('empty');
