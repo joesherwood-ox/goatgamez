@@ -114,74 +114,68 @@
   <footer>© 2025 GOATGAMEZ by Drip Studios</footer>
 
 <script>
-  const GAMES = [
-    // Existing games
-    {
-      id:'budget-minekraft',
-      title:'Budget Minekraft',
-      href:'games/budget-minekraft.html',
-      blurb:'Craft, destroy, and survive.',
-      img:'assets/thumbnails/budget-minekraft.png',
-      tags:['builder','survival'],
-      featured:true,
-      added:'2025-08-30'
-    },
-    {
-      id:'block-survivorz',
-      title:'Block Survivorz',
-      href:'games/block-survivorz.html',
-      blurb:'Power up and defeat the boss',
-      img:'assets/thumbnails/block-survivorz.png',
-      tags:['action','survival','2player'],
-      featured:true,
-      added:'2025-08-30'
-    },
-
-    {
-      id:'mouse-brainz',
-      title:'Mouse Brainz',
-      href:'games/mouse-brainz.html',
-      blurb:'Are you clever enough to solve the maze? Find out!',
-      img:'assets/thumbnails/mouse-brainz.png',
-      tags:['action','puzzle'],
-      featured:false,
-      added:'2025-08-30'
-    },
-
-    {
-      id:'ant-warz',
-      title:'Ant Warz',
-      href:'games/antwarsv2.6.html',           // make sure this matches the actual filename
-      blurb:'Command your colony. Gather, build, defend.',
-      img:'assets/thumbnails/ant-warz.png',    // use a real file or temporarily reuse another thumbnail
-      tags:['strategy','builder'],
-      featured:false,
-      added:'2025-08-30'
-    },
-
-        {
-      id:'meteor-dodge',
-      title:'Meteor Dodge',
-      href:'games/meteor-dodge.html',
-      blurb:'Fly a rocket, just don't get hit!',
-      img:'assets/thumbnails/meteor-dodge.png',
-      tags:['strategy','action', 'survival'],
-      featured:false,
-      added:'2025-09-01'
-    },
-
-              {
-      id:'rolly-polly',
-      title:'Rolly Polly',
-      href:'games/rolly-polly.html',
-      blurb:'Bounce around and stay alive',
-      img:'assets/thumbnails/rolly-polly.png',
-      tags:['strategy','action', 'survival'],
-      featured:false,
-      added:'2025-09-01'
-    },
-      
-  ];
+const GAMES = [
+  {
+    id:'budget-minekraft',
+    title:'Budget Minekraft',
+    href:'games/budget-minekraft.html',
+    blurb:'Craft, destroy, and survive.',
+    img:'assets/thumbnails/budget-minekraft.png',
+    tags:['builder','survival'],
+    featured:true,
+    added:'2025-08-30'
+  },
+  {
+    id:'block-survivorz',
+    title:'Block Survivorz',
+    href:'games/block-survivorz.html',
+    blurb:'Power up and defeat the boss',
+    img:'assets/thumbnails/block-survivorz.png',
+    tags:['action','survival','2player'],
+    featured:true,
+    added:'2025-08-30'
+  },
+  {
+    id:'mouse-brainz',
+    title:'Mouse Brainz',
+    href:'games/mouse-brainz.html',
+    blurb:'Are you clever enough to solve the maze? Find out!',
+    img:'assets/thumbnails/mouse-brainz.png',
+    tags:['action','puzzle'],
+    featured:false,
+    added:'2025-08-30'
+  },
+  {
+    id:'ant-warz',
+    title:'Ant Warz',
+    href:'games/ant-warz.html',
+    blurb:'Command your colony. Gather, build, defend.',
+    img:'assets/thumbnails/ant-warz.png',
+    tags:['strategy','builder'],
+    featured:false,
+    added:'2025-08-30'
+  },
+  {
+    id:'meteor-dodge',
+    title:'Meteor Dodge',
+    href:'games/meteor-dodge.html',
+    blurb:"Fly a rocket, just don't get hit!",
+    img:'assets/thumbnails/meteor-dodge.png',
+    tags:['strategy','action','survival'],
+    featured:false,
+    added:'2025-09-01'
+  },
+  {
+    id:'rolly-polly',
+    title:'Rolly Polly',
+    href:'games/rolly-polly.html',
+    blurb:'Bounce around and stay alive',
+    img:'assets/thumbnails/rolly-polly.png',
+    tags:['strategy','action','survival'],
+    featured:false,
+    added:'2025-09-01'
+  }
+];
 
   const grid=document.getElementById('grid');
   const emptyEl=document.getElementById('empty');
