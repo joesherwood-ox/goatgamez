@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meteor Dodge v3.3 — Better Rocket + Slower Ramp</title>
+  <style>
+    :root {
+      --bg: #060914;
+      --fg: #e6f1ff;
+      --accent: #4fd1c5;
+      --danger: #ff6b6b;
+      --muted: #9aa7ba;
+      --slow: #fbbf24;
+      --double: #a78bfa;
+      /* Rocket palette */
+      --rocket-cone: #e2f3ff;
+      --rocket-body: #9be9df;
+      --rocket-stripe: #2fc0b2;
+      --rocket-fin: #36c7b8;
+      --engine-bell: #455a64;
+      --window: #dff6ff;
+      --window-glass: rgba(255,255,255,0.85);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; height: 100%;
+      background: radial-gradient(1000px 600px at 50% 20%, #0e1840, var(--bg));
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      color: var(--fg); overflow: hidden;
+    }
+    .wrap { height: 100%; display: grid; grid-template-rows: auto 1fr auto; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; gap: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0));
+      backdrop-filter: blur(2px);
+    }
+    .title { font-weight: 700; letter-spacing: .5px; }
+    .hud { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+    .chip { padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.08); }
+    .chip.accent { border-color: rgba(79,209,197,0.35); box-shadow: 0 0 12px rgba(79,209,197,0.15) inset; }
+    .chip.danger { border-color: rgba(255,107,107,0.35); box-shadow: 0 0 12px rgba(255,107,107,0.15) inset; }
+    .chip.slow   { border-color: rgba(251,191,36,0.45); box-shadow: 0 0 12px rgba(251,191,36,0.25) inset; }
+    .chip.double { border-color: rgba(167,139,250,0.45); box-shadow: 0 0 12px rgba(167,139,250,0.25) inset; }
+    #game { position: relative; display: grid; place-items: center; height: 100%; }
+    canvas {
+      width: min(90vw, 800px); height: min(70vh, 700px);
+      border-radius: 16px; border: 1px solid rgba(255,255,255,0.08);
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+      box-shadow: 0 10px 40px rgba(0,0,0,0.4), inset 0 0 60px rgba(255,255,255,0.04);
+    }
+    .overlay { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; text-align: center; padding: 24px; }
+    .panel {
+      pointer-events: auto; background: rgba(11,16,32,0.82);
+      border: 1px solid rgba(255,255,255,0.08); border-radius: 16px;
+      padding: 18px 20px; max-width: 560px;
+      box-shadow: 0 20px 80px rgba(0,0,0,0.55), inset 0 0 60px rgba(255,255,255,0.03);
+      backdrop-filter: blur(8px); animation: pop 300ms ease;
+    }
+    @keyframes pop { from { transform: translateY(10px) scale(.98); opacity: 0 } to { transform: translateY(0) scale(1); opacity: 1 } }
+    .panel h1 { margin: 0 0 6px; font-size: 1.4rem; }
+    .panel p { margin: 6px 0 14px; color: var(--muted) }
+    .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    button { appearance: none; border: 0; background: var(--accent); color: #001418; font-weight: 700; padding: 10px 14px; border-radius: 12px; cursor: pointer; }
+    button.secondary { background: rgba(255,255,255,0.1); color: var(--fg); }
+    footer { font-size: 12px; color: var(--muted); text-align: center; padding: 10px 0 16px; }
+    kbd { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); border-bottom-color: rgba(0,0,0,0.35); border-radius: 6px; padding: 2px 6px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+    .dot { display:inline-block; width:10px; height:10px; border-radius:999px; margin-right:6px; }
+    .legend { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="title">🚀 Meteor Dodge <span style="opacity:.6">v3.3</span></div>
+      <div class="hud">
+        <div class="chip accent">Score: <span id="score">0</span></div>
+        <div class="chip">Best: <span id="best">0</span></div>
+        <div class="chip danger" id="livesChip" title="Hits left">❤ <span id="lives">1</span></div>
+        <div class="chip slow" id="slowChip" style="display:none"><span class="dot" style="background:var(--slow)"></span>Slow</div>
+        <div class="chip double" id="doubleChip" style="display:none"><span class="dot" style="background:var(--double)"></span>2x</div>
+      </div>
+      <div class="hud legend">
+        <div class="chip"><span class="dot" style="background:var(--slow)"></span>Slow</div>
+        <div class="chip"><span class="dot" style="background:var(--double)"></span>2× Score</div>
+        <div class="chip">Move: <kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> · Pause: <kbd>P</kbd></div>
+      </div>
+    </header>
+
+    <section id="game">
+      <canvas id="canvas" width="800" height="700" aria-label="Meteor Dodge game area"></canvas>
+      <div class="overlay" id="startOverlay">
+        <div class="panel">
+          <h1>Better rocket. Smoother difficulty.</h1>
+          <p>Use <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> to dodge. Meteors now start slower and ramp to max speed over ~200s. Power-ups: <strong>Slow</strong> & <strong>2× Score</strong>.</p>
+          <div class="row">
+            <button id="playBtn">Play</button>
+            <button id="howBtn" class="secondary">How to play</button>
+          </div>
+        </div>
+      </div>
+      <div class="overlay" id="howOverlay" style="display:none">
+        <div class="panel">
+          <h1>How to play</h1>
+          <p>Four-way movement. No shields. Slower early game; steady ramp for 200s.</p>
+          <p><span class="dot" style="background:var(--slow)"></span><strong>Slow</strong> (~6s) & <span class="dot" style="background:var(--double)"></span><strong>2× Score</strong> (~8s) spawn often.</p>
+          <div class="row">
+            <button id="backBtn" class="secondary">Back</button>
+            <button id="playBtn2">Play</button>
+          </div>
+        </div>
+      </div>
+      <div class="overlay" id="gameOverOverlay" style="display:none">
+        <div class="panel" id="gameOverPanel">
+          <h1>Game Over</h1>
+          <p id="finalText">You survived 0 seconds.</p>
+          <div class="row">
+            <button id="restartBtn">Restart</button>
+          </div>
+        </div>
+      </div>
+      <div class="overlay" id="pauseOverlay" style="display:none">
+        <div class="panel">
+          <h1>Paused</h1>
+          <p>Press <kbd>P</kbd> to resume.</p>
+          <div class="row">
+            <button id="resumeBtn">Resume</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      v3.3: rocket makeover + gentle 200s speed curve. Want angled meteors or touch controls next?
+    </footer>
+  </div>
+
+  <script>
+    (() => {
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+
+      // Retina scaling
+      function fitCanvas() {
+        const cssWidth = canvas.clientWidth;
+        const cssHeight = canvas.clientHeight;
+        const dpr = Math.max(1, window.devicePixelRatio || 1);
+        canvas.width = Math.floor(cssWidth * dpr);
+        canvas.height = Math.floor(cssHeight * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      addEventListener('resize', fitCanvas);
+      fitCanvas();
+
+      // UI nodes
+      const startOverlay = document.getElementById('startOverlay');
+      const howOverlay = document.getElementById('howOverlay');
+      const pauseOverlay = document.getElementById('pauseOverlay');
+      const gameOverOverlay = document.getElementById('gameOverOverlay');
+      const playBtn = document.getElementById('playBtn');
+      const playBtn2 = document.getElementById('playBtn2');
+      const howBtn = document.getElementById('howBtn');
+      const backBtn = document.getElementById('backBtn');
+      const resumeBtn = document.getElementById('resumeBtn');
+      const restartBtn = document.getElementById('restartBtn');
+      const finalText = document.getElementById('finalText');
+      const scoreEl = document.getElementById('score');
+      const bestEl = document.getElementById('best');
+      const livesEl = document.getElementById('lives');
+      const slowChip = document.getElementById('slowChip');
+      const doubleChip = document.getElementById('doubleChip');
+
+      const bestKey = 'meteor_dodge_best_v3_3';
+      let best = Number(localStorage.getItem(bestKey) || 0);
+      bestEl.textContent = best;
+
+      // Game state
+      let state = 'menu'; // menu | running | paused | over
+      let player, meteors, powerUps, keys, lastTime, spawnTimer, score, lives, difficultyTime;
+      let powerSpawnTimer;
+      let slowLeft = 0;     // seconds
+      let doubleLeft = 0;   // seconds
+      let exhaust = [];     // flame particles
+
+      function resetGame() {
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+        player = {
+          x: w * 0.5,
+          y: h - 40,
+          // rocket body dimensions (taller for a real rocket silhouette)
+          w: 22,
+          h: 32,
+          speed: 260,
+          vspeed: 220,
+          vx: 0,
+          vy: 0,
+          flame: 0
+        };
+        meteors = [];
+        powerUps = [];
+        exhaust = [];
+        keys = { left: false, right: false, up: false, down: false };
+        lastTime = 0;
+        spawnTimer = 0;
+        powerSpawnTimer = 2.8;
+        score = 0;
+        lives = 1;
+        difficultyTime = 0;
+        slowLeft = 0;
+        doubleLeft = 0;
+        scoreEl.textContent = '0';
+        livesEl.textContent = String(lives);
+        slowChip.style.display = 'none';
+        doubleChip.style.display = 'none';
+      }
+
+      function rnd(min, max) { return Math.random() * (max - min) + min; }
+      function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+      function easeOutQuad(t) { return 1 - (1 - t) * (1 - t); }
+
+      // Smooth ramp helpers: reach ~max by ~200 seconds (unless slowed)
+      const SPEED_RAMP_SECONDS = 200;
+      const METEOR_MAX_SPEED_SCALE = 2.4; // 1 -> 2.4 over 200s
+      const METEOR_BASE_MIN = 85;   // base start speeds lowered
+      const METEOR_BASE_MAX = 135;
+
+      function speedScaleFromTime(t) {
+        const u = clamp01(t / SPEED_RAMP_SECONDS);
+        return 1 + (METEOR_MAX_SPEED_SCALE - 1) * easeOutQuad(u);
+      }
+
+      function spawnMeteor() {
+        const w = canvas.clientWidth;
+        const radius = rnd(10, 22);
+        const scale = speedScaleFromTime(difficultyTime);
+        meteors.push({
+          x: rnd(radius, w - radius),
+          y: -radius * 2,
+          r: radius,
+          vy: rnd(METEOR_BASE_MIN, METEOR_BASE_MAX) * scale,
+          rot: rnd(0, Math.PI * 2),
+          spin: rnd(-0.6, 0.6),
+          seed: Math.random() * 10
+        });
+      }
+
+      const POWER_TYPES = ['slow', 'double'];
+      function spawnPowerUp() {
+        const w = canvas.clientWidth;
+        const type = POWER_TYPES[Math.floor(Math.random() * POWER_TYPES.length)];
+        const r = 10;
+        powerUps.push({
+          type, x: rnd(r, w - r), y: -r * 2, r,
+          vy: rnd(110, 150),
+          wob: rnd(0, Math.PI * 2),
+        });
+      }
+
+      function difficulty(dt) {
+        // Ramp time grows unless slowed (slow extends spawn interval elsewhere)
+        difficultyTime += dt;
+
+        const slowFactor = slowLeft > 0 ? 1.25 : 1;
+        const spawnBase = 0.95;
+        const spawnMin = 0.32;
+        const spawn = Math.max(spawnMin, (spawnBase - (difficultyTime / SPEED_RAMP_SECONDS) * 0.5) * slowFactor);
+
+        const pBase = 6.0;
+        const pMin  = 3.5;
+        const powerSpawn = Math.max(pMin, pBase - (difficultyTime / SPEED_RAMP_SECONDS) * 1.5);
+        return { spawn, powerSpawn };
+      }
+
+      function update(dt) {
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+
+        // Effect countdowns
+        if (slowLeft > 0) slowLeft = Math.max(0, slowLeft - dt);
+        if (doubleLeft > 0) doubleLeft = Math.max(0, doubleLeft - dt);
+        slowChip.style.display = slowLeft > 0 ? '' : 'none';
+        doubleChip.style.display = doubleLeft > 0 ? '' : 'none';
+
+        // Controls
+        player.vx = 0; player.vy = 0;
+        if (keys.left)  player.vx -= player.speed;
+        if (keys.right) player.vx += player.speed;
+        if (keys.up)    player.vy -= player.vspeed;
+        if (keys.down)  player.vy += player.vspeed;
+
+        player.x += player.vx * dt;
+        player.y += player.vy * dt;
+
+        // Clamp
+        const marginTop = 10, marginBottom = 10;
+        player.x = Math.max(player.w/2, Math.min(w - player.w/2, player.x));
+        player.y = Math.max(marginTop + player.h/2, Math.min(h - marginBottom - player.h/2, player.y));
+
+        // Animate flame
+        player.flame += dt * 12;
+
+        // Spawning
+        const { spawn, powerSpawn } = difficulty(dt);
+        spawnTimer -= dt;
+        powerSpawnTimer -= dt;
+
+        if (spawnTimer <= 0) { spawnMeteor(); spawnTimer = spawn; }
+        if (powerSpawnTimer <= 0) { spawnPowerUp(); powerSpawnTimer = powerSpawn; }
+
+        // Meteors
+        for (const m of meteors) {
+          const slowMul = slowLeft > 0 ? 0.55 : 1;
+          // Gentle acceleration that also ramps to a cap over 200s
+          const accelBase = 2.0;
+          const accelMax  = 6.0;
+          const accel = accelBase + (accelMax - accelBase) * clamp01(difficultyTime / SPEED_RAMP_SECONDS);
+          m.vy += accel * dt;
+          m.y += m.vy * dt * slowMul;
+          m.rot += m.spin * dt * 0.8;
+        }
+        meteors = meteors.filter(m => m.y - m.r <= h + 10);
+
+        // Power-ups
+        for (const p of powerUps) {
+          const slowMul = slowLeft > 0 ? 0.85 : 1;
+          p.wob += dt * 2.2;
+          p.x += Math.sin(p.wob) * 18 * dt;
+          p.y += p.vy * dt * slowMul;
+        }
+        powerUps = powerUps.filter(p => p.y - p.r <= h + 10);
+
+        // Exhaust particles
+        spawnExhaust(player);
+        updateExhaust(dt);
+
+        // Collisions
+        for (const m of meteors) {
+          if (circleRectHit(m.x, m.y, m.r * 0.85, player)) { endGame(); return; }
+        }
+        for (const p of powerUps) {
+          if (circleRectHit(p.x, p.y, p.r, player)) {
+            applyPowerUp(p.type);
+            p.y = canvas.clientHeight + 999;
+          }
+        }
+
+        // Score
+        const scoreMul = doubleLeft > 0 ? 2 : 1;
+        score += dt * scoreMul;
+        scoreEl.textContent = String(Math.floor(score));
+      }
+
+      function applyPowerUp(type) {
+        switch (type) {
+          case 'slow':   slowLeft = Math.max(slowLeft, 6); pulseChip(slowChip); break;
+          case 'double': doubleLeft = Math.max(doubleLeft, 8); pulseChip(doubleChip); break;
+        }
+      }
+
+      function pulseChip(el) {
+        el.style.display = '';
+        el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.08)' }, { transform: 'scale(1)' }], { duration: 300, easing: 'ease' });
+      }
+
+      function circleRectHit(cx, cy, cr, rect) {
+        const left = rect.x - rect.w/2;
+        const right = rect.x + rect.w/2;
+        const top = rect.y - rect.h/2;
+        const bottom = rect.y + rect.h/2;
+        const closestX = Math.max(left, Math.min(cx, right));
+        const closestY = Math.max(top, Math.min(cy, bottom));
+        const dx = cx - closestX;
+        const dy = cy - closestY;
+        return (dx*dx + dy*dy) <= (cr * cr);
+      }
+
+      // Particle exhaust
+      function spawnExhaust(pl) {
+        const t = performance.now() / 1000;
+        const count = 2 + Math.floor(Math.random() * 2);
+        for (let i = 0; i < count; i++) {
+          exhaust.push({
+            x: pl.x + rnd(-2, 2),
+            y: pl.y + pl.h/2 + 2,
+            vx: rnd(-15, 15),
+            vy: rnd(60, 110),
+            life: 0.5,
+            age: 0,
+            size: rnd(2, 4),
+          });
+        }
+      }
+      function updateExhaust(dt) {
+        for (const part of exhaust) {
+          part.age += dt;
+          part.x += part.vx * dt;
+          part.y += part.vy * dt;
+        }
+        exhaust = exhaust.filter(p => p.age < p.life);
+      }
+
+      // --- Drawing helpers ---
+      function draw() {
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+        ctx.clearRect(0, 0, w, h);
+
+        drawStarfield(w, h);
+
+        // Draw exhaust behind rocket first (so it appears under the rocket)
+        drawExhaust();
+
+        // Rocket
+        drawRocket(player);
+
+        // Meteors
+        for (const m of meteors) drawMeteor(m);
+
+        // Power-ups
+        for (const p of powerUps) drawPower(p);
+
+        // Timers
+        drawEffectTimers();
+      }
+
+      function drawStarfield(w, h) {
+        const t = performance.now() / 1000;
+        for (let i = 0; i < 100; i++) {
+          const x = (i * 97 + (t * 40 * (i % 3))) % w;
+          const y = (i * 53 + (t * 10)) % h;
+          ctx.globalAlpha = 0.15 + (i % 5) * 0.06;
+          ctx.fillStyle = '#e6f1ff';
+          ctx.fillRect(x, y, 2, 2);
+        }
+        ctx.globalAlpha = 0.07;
+        for (let i = 0; i < 20; i++) {
+          const sx = (i * 137 + (t * 120)) % w;
+          const sy = (i * 71 + (t * 30)) % h;
+          ctx.fillRect(sx, sy, 8, 1);
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      function drawExhaust() {
+        for (const part of exhaust) {
+          const a = 1 - (part.age / part.life);
+          ctx.globalAlpha = a * 0.7;
+          const grd = ctx.createRadialGradient(part.x, part.y, 0, part.x, part.y, part.size * 1.8);
+          grd.addColorStop(0, '#fff2a8');
+          grd.addColorStop(0.5, '#ffb347');
+          grd.addColorStop(1, 'rgba(255,107,107,0)');
+          ctx.fillStyle = grd;
+          ctx.beginPath();
+          ctx.arc(part.x, part.y, part.size * 1.6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      function drawRocket(pl) {
+        ctx.save();
+        ctx.translate(pl.x, pl.y);
+
+        // Tilt slightly toward movement for "forward" feel
+        const tilt = (pl.vx / pl.speed) * 0.25;
+        ctx.rotate(tilt);
+
+        // Nose cone (pointy)
+        ctx.fillStyle = getCssVar('--rocket-cone');
+        ctx.beginPath();
+        ctx.moveTo(0, -pl.h/2 - 10);
+        ctx.quadraticCurveTo(pl.w*0.32, -pl.h/2, 0, -pl.h/2);
+        ctx.quadraticCurveTo(-pl.w*0.32, -pl.h/2, 0, -pl.h/2 - 10);
+        ctx.fill();
+
+        // Body
+        ctx.fillStyle = getCssVar('--rocket-body');
+        roundedRect(ctx, -pl.w/2, -pl.h/2, pl.w, pl.h, 8);
+        ctx.fill();
+
+        // Stripe
+        ctx.fillStyle = getCssVar('--rocket-stripe');
+        roundedRect(ctx, -pl.w/2 + 2, -pl.h*0.08, pl.w - 4, pl.h*0.16, 4);
+        ctx.fill();
+
+        // Fins (triangles)
+        ctx.fillStyle = getCssVar('--rocket-fin');
+        ctx.beginPath();
+        ctx.moveTo(-pl.w/2, pl.h*0.05);
+        ctx.lineTo(-pl.w/2 - 8, pl.h*0.40);
+        ctx.lineTo(-pl.w/2 + 1, pl.h*0.40);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(pl.w/2, pl.h*0.05);
+        ctx.lineTo(pl.w/2 + 8, pl.h*0.40);
+        ctx.lineTo(pl.w/2 - 1, pl.h*0.40);
+        ctx.closePath();
+        ctx.fill();
+
+        // Engine bell
+        ctx.fillStyle = getCssVar('--engine-bell');
+        roundedRect(ctx, -pl.w*0.22, pl.h/2 - 2, pl.w*0.44, 7, 3);
+        ctx.fill();
+
+        // Thruster flame (animated)
+        const flicker = Math.sin(pl.flame) * 0.6 + Math.random() * 0.2;
+        const flameLen = 12 + flicker * 6;
+        const flameW = 6 + flicker * 2;
+        const grd = ctx.createLinearGradient(0, 0, 0, flameLen);
+        grd.addColorStop(0, '#fff2a8');
+        grd.addColorStop(0.5, '#ffb347');
+        grd.addColorStop(1, '#ff6b6b');
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.moveTo(0, pl.h/2 + 3);
+        ctx.quadraticCurveTo(-flameW, pl.h/2 + flameLen * 0.5, 0, pl.h/2 + flameLen);
+        ctx.quadraticCurveTo(flameW, pl.h/2 + flameLen * 0.5, 0, pl.h/2 + 3);
+        ctx.fill();
+
+        // Window
+        ctx.fillStyle = getCssVar('--window');
+        ctx.beginPath();
+        ctx.arc(0, -pl.h*0.18, pl.w*0.18, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = getCssVar('--window-glass');
+        ctx.beginPath();
+        ctx.arc(-pl.w*0.06, -pl.h*0.21, pl.w*0.07, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        ctx.restore();
+      }
+
+      function drawMeteor(m) {
+        const colorCore = '#b8743f';
+        const colorShade = '#7a4f31';
+        const tail = '#ffa84a';
+
+        ctx.save();
+        ctx.translate(m.x, m.y);
+        ctx.rotate(m.rot);
+
+        // fiery tail
+        ctx.globalAlpha = 0.38;
+        ctx.rotate(-Math.PI / 2.2);
+        ctx.fillStyle = tail;
+        ctx.beginPath();
+        ctx.moveTo(-m.r * 0.7, 0);
+        ctx.quadraticCurveTo(-m.r * 2.4, m.r * 0.7, -m.r * 3.4, 0);
+        ctx.quadraticCurveTo(-m.r * 2.4, -m.r * 0.7, -m.r * 0.7, 0);
+        ctx.fill();
+        ctx.rotate(Math.PI / 2.2);
+        ctx.globalAlpha = 1;
+
+        // jagged rocky body
+        ctx.fillStyle = colorCore;
+        ctx.beginPath();
+        const spikes = 10;
+        for (let i = 0; i < spikes; i++) {
+          const ang = (i / spikes) * Math.PI * 2;
+          const wob = (Math.sin(ang * 3 + m.seed) + 1) * 0.5;
+          const rr = m.r * (0.8 + wob * 0.35);
+          if (i === 0) ctx.moveTo(Math.cos(ang) * rr, Math.sin(ang) * rr);
+          else ctx.lineTo(Math.cos(ang) * rr, Math.sin(ang) * rr);
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.globalAlpha = 0.6;
+        ctx.strokeStyle = colorShade;
+        ctx.lineWidth = Math.max(1, m.r * 0.1);
+        ctx.stroke();
+
+        // small craters
+        ctx.globalAlpha = 0.45;
+        for (let i = 0; i < 3; i++) {
+          const a = m.seed + i * 2;
+          const cx = Math.cos(a) * m.r * 0.35;
+          const cy = Math.sin(a) * m.r * 0.25;
+          const cr = m.r * (0.12 + (i % 2) * 0.05);
+          ctx.beginPath();
+          ctx.fillStyle = colorShade;
+          ctx.arc(cx, cy, cr, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
+        ctx.restore();
+      }
+
+      function drawPower(p) {
+        const color = p.type === 'slow' ? getCssVar('--slow') : getCssVar('--double');
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        // Glow
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(0, 0, p.r * 1.9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        // Core ball
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(0, 0, p.r, 0, Math.PI * 2);
+        ctx.fill();
+        // Symbol
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = '#001018';
+        if (p.type === 'slow') {
+          ctx.fillRect(-4, -1.5, 2.5, 3);
+          ctx.fillRect(1.5, -1.5, 2.5, 3);
+        } else {
+          ctx.font = 'bold 10px ui-sans-serif, system-ui';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText('2×', 0, 0);
+        }
+        ctx.restore();
+      }
+
+      function drawEffectTimers() {
+        const w = canvas.clientWidth;
+        const pad = 12;
+        const barW = 90;
+        const barH = 6;
+        let y = 10 + pad;
+
+        if (slowLeft > 0) {
+          drawTimerBar(w - barW - pad, y, barW, barH, slowLeft / 6, getCssVar('--slow'));
+          y += barH + 6;
+        }
+        if (doubleLeft > 0) {
+          drawTimerBar(w - barW - pad, y, barW, barH, doubleLeft / 8, getCssVar('--double'));
+        }
+      }
+
+      function getCssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+      function drawTimerBar(x, y, w, h, t, color) {
+        ctx.save();
+        ctx.globalAlpha = 0.35; ctx.fillStyle = '#000'; ctx.fillRect(x, y, w, h);
+        ctx.globalAlpha = 1; ctx.fillStyle = color; ctx.fillRect(x, y, Math.max(0, Math.min(1, t)) * w, h);
+        ctx.restore();
+      }
+      function roundedRect(ctx, x, y, w, h, r) {
+        r = Math.min(r, w/2, h/2);
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      function loop(ts) {
+        if (state !== 'running') return;
+        if (!lastTime) lastTime = ts;
+        const dt = Math.min(0.05, (ts - lastTime) / 1000);
+        lastTime = ts;
+
+        update(dt);
+        draw();
+        requestAnimationFrame(loop);
+      }
+
+      function play() {
+        resetGame();
+        hideAllOverlays();
+        state = 'running';
+        requestAnimationFrame(loop);
+      }
+
+      function endGame() {
+        state = 'over';
+        const survived = Math.floor(score);
+        finalText.textContent = `You survived ${survived} seconds.`;
+        if (survived > best) {
+          best = survived;
+          localStorage.setItem(bestKey, String(best));
+          bestEl.textContent = best;
+        }
+        show(gameOverOverlay);
+      }
+
+      function pause() {
+        if (state !== 'running') return;
+        state = 'paused';
+        show(pauseOverlay);
+      }
+
+      function resume() {
+        if (state !== 'paused') return;
+        hide(pauseOverlay);
+        state = 'running';
+        requestAnimationFrame(loop);
+      }
+
+      // Overlay helpers
+      function show(el) { el.style.display = ''; }
+      function hide(el) { el.style.display = 'none'; }
+      function hideAllOverlays() { hide(startOverlay); hide(howOverlay); hide(pauseOverlay); hide(gameOverOverlay); }
+
+      // Events
+      playBtn.addEventListener('click', play);
+      playBtn2.addEventListener('click', play);
+      howBtn.addEventListener('click', () => { hide(startOverlay); show(howOverlay); });
+      backBtn.addEventListener('click', () => { hide(howOverlay); show(startOverlay); });
+      resumeBtn.addEventListener('click', resume);
+      restartBtn.addEventListener('click', play);
+
+      // Keyboard
+      addEventListener('keydown', (e) => {
+        const k = e.key;
+        if (k === 'ArrowLeft')  { keys.left = true; e.preventDefault(); }
+        if (k === 'ArrowRight') { keys.right = true; e.preventDefault(); }
+        if (k === 'ArrowUp')    { keys.up = true; e.preventDefault(); }
+        if (k === 'ArrowDown')  { keys.down = true; e.preventDefault(); }
+        if (k.toLowerCase() === 'p') {
+          if (state === 'running') pause();
+          else if (state === 'paused') resume();
+        }
+        if (state === 'over' && k === 'Enter') play();
+      });
+      addEventListener('keyup', (e) => {
+        const k = e.key;
+        if (k === 'ArrowLeft')  { keys.left = false; e.preventDefault(); }
+        if (k === 'ArrowRight') { keys.right = false; e.preventDefault(); }
+        if (k === 'ArrowUp')    { keys.up = false; e.preventDefault(); }
+        if (k === 'ArrowDown')  { keys.down = false; e.preventDefault(); }
+      });
+
+      // Start on menu
+      show(startOverlay);
+    })();
+  </script>
+</body>
+</html>
