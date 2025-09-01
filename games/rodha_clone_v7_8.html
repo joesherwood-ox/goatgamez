@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Rodhâ Clone v7.8</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #0f0f13; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #e6e6ea; }
+    #menu, #characterMenu, #levelMenu {
+      position: absolute; inset: 0;
+      background: radial-gradient(1200px 800px at 50% 20%, #17171d 0%, #0f0f13 60%);
+      display: none; flex-direction: column;
+      justify-content: center; align-items: center; gap: 16px; z-index: 2;
+      text-align: center;
+    }
+    #menu { display: flex; }
+    h1, h2, p { margin: 0 0 8px; }
+    .sub { opacity: .8; font-size: 14px; }
+    button {
+      padding: 12px 20px; font-size: 16px; cursor: pointer;
+      border: 1px solid #2b2b33; background: #1a1a22; color: #e6e6ea; border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.02);
+      transition: transform .1s ease, background .2s ease, box-shadow .2s ease;
+    }
+    button:hover { transform: translateY(-1px); background: #21212a; box-shadow: 0 6px 16px rgba(0,0,0,.35); }
+    #levelButtons { display: flex; flex-wrap: wrap; gap: 8px; max-width: 900px; justify-content: center; }
+    canvas { display: block; background: linear-gradient(#0f0f13, #12121a); }
+  </style>
+</head>
+<body>
+
+<div id="menu">
+  <h1>Rodhâ Clone v7.8</h1>
+  <p class="sub">Controls: Press <b>A</b> / <b>D</b> or <b>◀</b> / <b>▶</b> to move + jump (double-jump allowed)</p>
+  <button onclick="showCharacterMenu()">Play</button>
+</div>
+
+<div id="characterMenu">
+  <h2>Select Your Character</h2>
+  <div style="display:flex; gap:10px;">
+    <button onclick="selectCharacter('tomato')">Red</button>
+    <button onclick="selectCharacter('deepskyblue')">Blue</button>
+    <button onclick="selectCharacter('palegreen')">Green</button>
+  </div>
+  <button onclick="backToMenu()">Back</button>
+</div>
+
+<div id="levelMenu">
+  <h2>Select a Level</h2>
+  <p class="sub">Tip: Activate all flags to open the portal.</p>
+  <div id="levelButtons"></div>
+  <button onclick="backToChars()">Back</button>
+</div>
+
+<canvas id="gameCanvas" style="display:none;"></canvas>
+<script>
+// ===== Core Canvas Setup =====
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+function resize(){ canvas.width = innerWidth; canvas.height = innerHeight; }
+addEventListener("resize", resize); resize();
+
+// ===== Game State =====
+let selectedCharacter = "tomato";
+let currentLevel = 0;
+let levelComplete = false;
+let jumpCount = 0;
+let camX = 0;
+let frame = 0;
+
+const gravity = 0.6;
+const jumpVelocity = -12;
+const baseMoveX = 2.8;  // player pacing from v7.6+
+const maxJumps = 2;
+
+// ===== Player =====
+const player = { x: 100, y: 300, radius: 15, vx: 0, vy: 0, onGround: false, respawnX: 100, respawnY: 300, prevY: 300 };
+
+// ===== World Entities =====
+let platforms = [], flags = [], saws = [], portal = {};
+let turrets = [], projectiles = [], seekers = [];
+let portalParticles = [];
+
+// ===== Tunables =====
+const SAW_HEIGHT = 20, SAW_WIDTH = 40, PLATFORM_HEIGHT = 10;
+const FLAG_W = 10, FLAG_H = 20;
+
+const TURRET_RANGE_PX = 192;         // ~2 inches range
+const TURRET_COOLDOWN = 90;
+const PROJECTILE_SPEED = 7;           // straight shot speed
+const SEEKER_SPEED = 2.2, SEEKER_TURN = 0.035; // slower seekers
+const HEATSEEKER_CHANCE = 0.35;
+
+// ===== Menu Navigation =====
+function showCharacterMenu(){ document.getElementById("menu").style.display="none"; document.getElementById("characterMenu").style.display="flex"; }
+function selectCharacter(color){ selectedCharacter=color; document.getElementById("characterMenu").style.display="none"; document.getElementById("levelMenu").style.display="flex"; buildLevelButtons(); }
+function buildLevelButtons(){
+  const container = document.getElementById("levelButtons"); container.innerHTML="";
+  for (let i=0;i<30;i++){ const b=document.createElement("button"); b.textContent="Level "+(i+1); b.onclick=()=>startLevel(i); container.appendChild(b); }
+}
+function backToMenu(){ document.getElementById("characterMenu").style.display="none"; document.getElementById("menu").style.display="flex"; }
+function backToChars(){ document.getElementById("levelMenu").style.display="none"; document.getElementById("characterMenu").style.display="flex"; }
+
+// ===== Start / Level Gen =====
+function startLevel(index){
+  currentLevel=index; levelComplete=false; camX=0; jumpCount=0; player.vx=0; player.vy=0;
+  document.getElementById("levelMenu").style.display="none"; canvas.style.display="block";
+  loadLevel(index); requestAnimationFrame(loop);
+}
+
+function loadLevel(index){
+  platforms=[]; flags=[]; saws=[]; turrets=[]; projectiles=[]; seekers=[]; portal={}; portalParticles=[];
+  const xStart=100, spacing=400;
+
+  for (let i=0;i<index+4;i++){
+    const y=400 - (i%2)*50;
+    platforms.push({x:xStart+i*spacing, y:y, w:300});
+    if (i%2===1){ flags.push({x:xStart+i*spacing+120, y:y-20, active:false}); }
+  }
+
+  // One saw per three platforms (random platforms)
+  const targetSaws=Math.floor(platforms.length/3);
+  for (let i=0;i<targetSaws;i++){
+    const p=platforms[Math.floor(Math.random()*platforms.length)];
+    const margin=40;
+    const px=p.x+margin+Math.random()*(p.w-margin*2);
+    const py=p.y-20-Math.random()*10;
+    saws.push({x:px,y:py,w:SAW_WIDTH,h:SAW_HEIGHT,dir:Math.random()<.5?1:-1,range:60,origin:px});
+  }
+
+  // Turrets every few platforms
+  for (let i=2;i<platforms.length;i+=3){
+    const p=platforms[i]; const tx=p.x+p.w-30; const ty=p.y-14;
+    turrets.push({x:tx,y:ty,cooldown:Math.floor(Math.random()*TURRET_COOLDOWN),range:TURRET_RANGE_PX,sees:false});
+  }
+
+  // Portal at the end (animated)
+  portal={ x:xStart+(index+4)*spacing, y:370, r:26, active:false };
+
+  // Player spawn
+  player.x=player.respawnX=platforms[0].x+50;
+  player.y=player.respawnY=platforms[0].y-player.radius;
+}
+
+// ===== Helpers =====
+function resetPlayer(){ player.x=player.respawnX; player.y=player.respawnY; player.vx=0; player.vy=0; jumpCount=0; }
+function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+
+// ===== Drawing =====
+function drawPlayer(){
+  // soft outer glow
+  const g = ctx.createRadialGradient(player.x-camX, player.y, 4, player.x-camX, player.y, 28);
+  g.addColorStop(0, selectedCharacter);
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(player.x-camX, player.y, 28, 0, Math.PI*2); ctx.fill();
+
+  // core
+  ctx.fillStyle = selectedCharacter;
+  ctx.beginPath(); ctx.ellipse(player.x-camX, player.y, player.radius, player.radius, 0, 0, Math.PI*2); ctx.fill();
+
+  // streak
+  ctx.strokeStyle = "rgba(255,255,255,.6)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(player.x - camX - player.vx*5, player.y - player.vy*5);
+  ctx.lineTo(player.x - camX, player.y);
+  ctx.stroke();
+  ctx.lineWidth = 1;
+}
+
+function drawScene(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // Parallax backdrop bars
+  ctx.globalAlpha = 0.25;
+  for (let i=0;i<6;i++){
+    const y = 120 + i*80 + Math.sin((frame/70)+i)*6;
+    ctx.fillStyle = i%2? "#1a1a22" : "#17171d";
+    ctx.fillRect(-camX*0.2 + (i*400)% (canvas.width+800), y, canvas.width+800, 12);
+  }
+  ctx.globalAlpha = 1;
+
+  // Platforms
+  platforms.forEach(p=>{
+    const x=p.x-camX, y=p.y;
+    // top highlight
+    ctx.fillStyle = "#2b2b33"; ctx.fillRect(x, y, p.w, PLATFORM_HEIGHT);
+    // edge bevel
+    ctx.fillStyle = "#1c1c24"; ctx.fillRect(x, y+PLATFORM_HEIGHT, p.w, 3);
+  });
+
+  // Flags
+  flags.forEach(f=>{
+    ctx.fillStyle = f.active ? "#e6e6ea" : "#1c1c24";
+    ctx.fillRect(f.x-camX, f.y, FLAG_W, FLAG_H);
+    ctx.strokeStyle = "#3a3a44"; ctx.strokeRect(f.x-camX, f.y, FLAG_W, FLAG_H);
+  });
+
+  // Static saws
+  saws.forEach(s=>{
+    const cx = s.x - camX, cy = s.y;
+    const R = s.w/2, r = s.h/2;
+    // metallic ring
+    const grad = ctx.createRadialGradient(cx, cy, r*0.4, cx, cy, R);
+    grad.addColorStop(0, "#cfd3da"); grad.addColorStop(1, "#7b8491");
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.ellipse(cx, cy, R, r, 0, 0, Math.PI*2); ctx.fill();
+    // teeth
+    ctx.strokeStyle = "#444b57"; ctx.beginPath();
+    for (let i=0;i<12;i++){ const a=i*(Math.PI*2/12)+frame*0.02; ctx.moveTo(cx+Math.cos(a)*r, cy+Math.sin(a)*r); ctx.lineTo(cx+Math.cos(a)*R, cy+Math.sin(a)*R); }
+    ctx.stroke();
+  });
+
+  // Turrets
+  turrets.forEach(t=>{
+    const x=t.x-camX, y=t.y;
+    // base
+    ctx.fillStyle="#2b2b33"; ctx.fillRect(x-10,y,20,14);
+    // head
+    ctx.beginPath(); ctx.fillStyle = t.sees ? "#ff4d4f" : "#3ad480";
+    ctx.arc(x,y,7,0,Math.PI*2); ctx.fill();
+  });
+
+  // Projectiles
+  projectiles.forEach(p=>{
+    ctx.fillStyle="#ff6b6b"; ctx.beginPath(); ctx.arc(p.x-camX, p.y, 8, 0, Math.PI*2); ctx.fill();
+  });
+
+  // Seekers
+  seekers.forEach(s=>{
+    ctx.fillStyle="#ffb86b"; ctx.beginPath(); ctx.arc(s.x-camX, s.y, 6, 0, Math.PI*2); ctx.fill();
+  });
+
+  // Portal (animated)
+  drawPortal();
+  drawPlayer();
+}
+
+function drawPortal(){
+  const allFlags = flags.every(f=>f.active);
+  portal.active = allFlags;
+
+  const cx = portal.x - camX, cy = portal.y, R = portal.r;
+  const t = frame / 60;
+
+  // swirling core
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R*1.2);
+  const coreColor = portal.active ? "#7be9ff" : "#7088ff";
+  g.addColorStop(0.0, coreColor);
+  g.addColorStop(0.4, "rgba(123,233,255,0.7)");
+  g.addColorStop(0.8, "rgba(80,110,255,0.25)");
+  g.addColorStop(1.0, "rgba(0,0,0,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(cx, cy, R*1.2, 0, Math.PI*2); ctx.fill();
+
+  // rotating rings
+  const ringCount = 3;
+  for (let i=0;i<ringCount;i++){
+    const rr = R* (0.65 + i*0.18 + 0.04*Math.sin(t*2 + i));
+    ctx.strokeStyle = `rgba(180,200,255,${0.35 + 0.2*Math.sin(t*2 + i)})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const start = (t*1.8 + i)*Math.PI*2;
+    ctx.arc(cx, cy, rr, start, start + Math.PI*1.2);
+    ctx.stroke();
+  }
+
+  // spiral spokes
+  ctx.strokeStyle = "rgba(255,255,255,.25)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let a=0; a<Math.PI*2; a+=Math.PI/7){
+    const r1 = R*0.2 + 4*Math.sin(t*3 + a*3);
+    const r2 = R*0.95 + 6*Math.cos(t*2 + a*4);
+    ctx.moveTo(cx + Math.cos(a+t*2)*r1, cy + Math.sin(a+t*2)*r1);
+    ctx.lineTo(cx + Math.cos(a+t*2)*r2, cy + Math.sin(a+t*2)*r2);
+  }
+  ctx.stroke();
+
+  // edge glow
+  ctx.shadowColor = portal.active ? "rgba(123,233,255,.8)" : "rgba(112,136,255,.6)";
+  ctx.shadowBlur = portal.active ? 22 : 14;
+  ctx.strokeStyle = portal.active ? "rgba(123,233,255,.85)" : "rgba(112,136,255,.55)";
+  ctx.lineWidth = portal.active ? 3 : 2;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.stroke();
+  ctx.shadowBlur = 0; // reset
+}
+
+// ===== Update =====
+function update(){
+  player.prevY = player.y;
+  player.vy += gravity;
+  player.x += player.vx;
+  player.y += player.vy;
+  camX = player.x - canvas.width/3;
+  player.onGround = false;
+
+  // platform collisions
+  platforms.forEach(p=>{
+    const r=player.radius, nextBottom=player.y+r, prevBottom=player.prevY+r;
+    const fallsThrough = prevBottom <= p.y && nextBottom >= p.y;
+    const withinX = player.x + r > p.x && player.x - r < p.x + p.w;
+    if (fallsThrough && withinX && player.vy >= 0){
+      player.y = p.y - r; player.vy = 0; player.onGround = true; jumpCount=0;
+    }
+  });
+
+  // flag activation
+  flags.forEach(f=>{
+    if (!f.active && player.x>f.x-10 && player.x<f.x+20 && Math.abs(player.y-f.y)<30){
+      f.active = true; player.respawnX=f.x+5; player.respawnY=f.y-player.radius;
+    }
+  });
+
+  // saws
+  saws.forEach(s=>{
+    s.x += s.dir; if (Math.abs(s.x - s.origin) > s.range) s.dir *= -1;
+    if (Math.abs(player.x-s.x) < s.w/2 && Math.abs(player.y-s.y) < s.h/2) resetPlayer();
+  });
+
+  // turrets
+  turrets.forEach(t=>{
+    const dx=player.x-t.x, dy=player.y-t.y, dist=Math.hypot(dx,dy);
+    t.sees = dist <= t.range;
+    if (t.cooldown>0) t.cooldown--;
+    if (t.sees && t.cooldown===0){
+      const angle=Math.atan2(dy,dx);
+      if (Math.random() < HEATSEEKER_CHANCE){
+        seekers.push({x:t.x,y:t.y,vx:Math.cos(angle)*SEEKER_SPEED,vy:Math.sin(angle)*SEEKER_SPEED});
+      } else {
+        projectiles.push({x:t.x,y:t.y,vx:Math.cos(angle)*PROJECTILE_SPEED,vy:Math.sin(angle)*PROJECTILE_SPEED});
+      }
+      t.cooldown = TURRET_COOLDOWN;
+    }
+  });
+
+  // projectiles
+  projectiles = projectiles.filter(p=>{
+    p.x+=p.vx; p.y+=p.vy;
+    if (Math.hypot(player.x-p.x, player.y-p.y) < player.radius+6){ resetPlayer(); return false; }
+    if (p.x-camX<-100 || p.x-camX>canvas.width+200 || p.y<-200 || p.y>canvas.height+200) return false;
+    return true;
+  });
+
+  // seekers
+  seekers = seekers.filter(s=>{
+    const dx=player.x-s.x, dy=player.y-s.y;
+    const targetAngle=Math.atan2(dy,dx); const currentAngle=Math.atan2(s.vy,s.vx);
+    let da = targetAngle - currentAngle; da = Math.atan2(Math.sin(da), Math.cos(da));
+    const newAngle = currentAngle + clamp(da, -SEEKER_TURN, SEEKER_TURN);
+    s.vx = Math.cos(newAngle)*SEEKER_SPEED; s.vy = Math.sin(newAngle)*SEEKER_SPEED;
+    s.x+=s.vx; s.y+=s.vy;
+    if (Math.hypot(player.x-s.x, player.y-s.y) < player.radius+5){ resetPlayer(); return false; }
+    if (s.x-camX<-120 || s.x-camX>canvas.width+220 || s.y<-220 || s.y>canvas.height+220) return false;
+    return true;
+  });
+
+  // complete
+  const dx = player.x-portal.x, dy = player.y-portal.y;
+  if (!levelComplete && Math.sqrt(dx*dx+dy*dy) < player.radius + portal.r && flags.every(f=>f.active)){
+    levelComplete=true;
+    setTimeout(()=>{ 
+      alert("Level Complete!");
+      // Return to level select after completion
+      canvas.style.display="none"; document.getElementById("levelMenu").style.display="flex";
+    }, 300);
+  }
+
+  if (player.y > canvas.height + 200) resetPlayer();
+}
+
+// ===== Loop =====
+function loop(){
+  frame++;
+  update();
+  drawScene();
+  requestAnimationFrame(loop);
+}
+
+// ===== Controls =====
+addEventListener("keydown", e=>{
+  if (jumpCount < maxJumps){
+    if (e.key==="a"||e.key==="ArrowLeft"){ player.vx=-baseMoveX; player.vy=jumpVelocity; jumpCount++; }
+    if (e.key==="d"||e.key==="ArrowRight"){ player.vx= baseMoveX; player.vy=jumpVelocity; jumpCount++; }
+  }
+});
+</script>
+</body>
+</html>
