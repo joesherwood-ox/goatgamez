@@ -1,0 +1,2025 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Mouse Brainz v2 — Times Table Escape</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="description" content="Mouse Brainz v2: a maze-escape game that drills multiplication facts with an adaptive practice engine." />
+  <style>
+    :root{
+      --bg:#0b0f14; --panel:#121a24; --panel2:#182233; --ink:#eef5fb; --muted:#9fb0c1;
+      --grid:#263241; --walls:#d9e4ee; --accent:#76a9ff; --accent2:#a88cff;
+      --start:#28c76f; --exit:#ff7a90; --danger:#ff4d5e; --gold:#ffd166;
+      --mouse:#c9d1d9; --mouse-stroke:#4a5568; --mouse-accent:#ff7a90; --eye-blue:#76a9ff;
+      --success:#37d67a; --boss:#c86bff;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:radial-gradient(circle at top,#152234 0%,#0b0f14 55%,#070a0f 100%);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%;overscroll-behavior:none;}
+    .wrap{min-height:100%;display:grid;place-items:center;padding:14px;}
+    .game-shell{width:min(98vw,1180px);display:grid;gap:12px;}
+    .play-area{display:grid;grid-template-columns:minmax(0,900px) 250px;gap:14px;align-items:start;justify-content:center;}
+    .legend{background:rgba(18,26,36,.82);border:1px solid rgba(118,169,255,.18);border-radius:18px;padding:14px;box-shadow:0 10px 28px rgba(0,0,0,.22);}
+    .legend h2{margin:0 0 10px;font-size:15px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);}
+    .legend-list{display:grid;gap:8px;}
+    .legend-item{display:grid;grid-template-columns:30px 1fr;gap:8px;align-items:center;font-size:12px;line-height:1.25;color:#c9d6e4;}
+    .legend-icon{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:#0d1520;border:1px solid #2b3a4f;font-weight:950;}
+    .selected-card{border-color:rgba(255,209,102,.58);box-shadow:0 0 0 1px rgba(255,209,102,.12),0 10px 28px rgba(0,0,0,.2);}
+    header{display:flex;align-items:end;justify-content:space-between;gap:14px;flex-wrap:wrap;}
+    h1{margin:0;font-size:clamp(22px,4vw,38px);line-height:1;font-weight:950;letter-spacing:.02em;text-transform:lowercase;text-shadow:0 4px 22px rgba(118,169,255,.18)}
+    .subtitle{margin:4px 0 0;color:var(--muted);font-size:13px;}
+    .top-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}
+    button,.select{border:1px solid #2b3a4f;background:#141d2a;color:var(--ink);border-radius:12px;padding:10px 13px;font-weight:800;box-shadow:0 10px 30px rgba(0,0,0,.18);font-family:inherit;font-size:14px;}
+    button{cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+    button:hover{border-color:var(--accent)} button:active{transform:translateY(1px)}
+    button:disabled{opacity:.45;cursor:not-allowed}
+    .hud{display:grid;grid-template-columns:repeat(9,minmax(78px,1fr));gap:8px;}
+    .hud-card{background:rgba(18,26,36,.82);border:1px solid rgba(118,169,255,.18);border-radius:14px;padding:9px 10px;box-shadow:0 10px 28px rgba(0,0,0,.2);}
+    .hud-label{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800;}
+    .hud-value{display:block;font-size:16px;font-weight:950;margin-top:2px;white-space:nowrap;}
+    .hud-value.hot{color:var(--gold)}
+    .stage-col{display:grid;justify-items:center;min-width:0;gap:0;}
+    .stage-wrap{position:relative;display:grid;place-items:center;}
+    /* The slot sits inside the maze column, so the bar centres on the maze
+       rather than on the page (the legend column would otherwise push it). */
+    .banner-slot{min-height:48px;width:100%;display:grid;place-items:center;padding:2px 0 6px;}
+    .banner{opacity:0;transform:translateY(-6px);transition:opacity .18s ease,transform .18s ease;
+      background:rgba(18,26,36,.92);border:1px solid rgba(118,169,255,.28);border-radius:14px;
+      padding:10px 20px;font-weight:850;font-size:14px;letter-spacing:.01em;text-align:center;
+      box-shadow:0 8px 24px rgba(0,0,0,.35);max-width:96%;}
+    .banner.show{opacity:1;transform:translateY(0);}
+    .banner.good{border-color:rgba(55,214,122,.5);color:#bdf5d6}
+    .banner.bad{border-color:rgba(255,77,94,.5);color:#ffc2c9}
+    .banner.gold{border-color:rgba(255,209,102,.5);color:#ffe066}
+    canvas{width:min(94vmin,900px);height:min(94vmin,900px);display:block;border-radius:20px;background:linear-gradient(180deg,#0f1824 0%,#0b0f14 100%);box-shadow:0 18px 50px rgba(0,0,0,.42),inset 0 0 0 1px rgba(255,255,255,.04);touch-action:none;}
+    .note{color:var(--muted);font-size:12px;text-align:center;line-height:1.45;}
+    .overlay{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(5,8,12,.88);backdrop-filter:blur(8px);overflow-y:auto;}
+    .overlay.show{display:flex;}
+    .modal{width:min(760px,96vw);border:1px solid rgba(118,169,255,.32);border-radius:26px;background:linear-gradient(180deg,rgba(24,34,51,.98),rgba(13,19,29,.98));box-shadow:0 32px 100px rgba(0,0,0,.52);padding:clamp(18px,4vw,34px);text-align:center;margin:auto;}
+    .modal.boss{border-color:rgba(200,107,255,.55);box-shadow:0 32px 100px rgba(120,0,180,.35);}
+    .modal h2{margin:0 0 10px;font-size:clamp(24px,5vw,42px);line-height:1;font-weight:950;}
+    .modal p{color:#c9d6e4;font-size:clamp(14px,2.2vw,17px);line-height:1.45;max-width:620px;margin:10px auto;}
+    .primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#06101d;border:0;font-size:17px;padding:13px 22px;border-radius:16px;margin-top:14px;}
+    .secondary{background:#131c28;color:var(--ink);border:1px solid #33465f;}
+
+    /* ---- math battle ---- */
+    .battle-head{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;margin-bottom:6px;}
+    .hp-pips{display:inline-flex;gap:5px;}
+    .pip{width:16px;height:16px;border-radius:50%;background:#2b3a4f;border:2px solid #46597a;}
+    .pip.full{background:var(--danger);border-color:#ff97a4;box-shadow:0 0 10px rgba(255,77,94,.6);}
+    .pip.boss.full{background:var(--boss);border-color:#e0b3ff;box-shadow:0 0 12px rgba(200,107,255,.7);}
+    .combo-badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 12px;font-weight:950;font-size:13px;background:rgba(255,209,102,.12);border:1px solid rgba(255,209,102,.35);color:#ffe066;}
+    .problem-face{font-size:clamp(34px,8vw,60px);font-weight:950;letter-spacing:.02em;margin:14px 0 4px;line-height:1.1;}
+    .problem-face .blank{display:inline-block;min-width:1.6em;border-bottom:6px solid var(--gold);color:var(--gold);}
+    .riddle-face{font-size:clamp(16px,3vw,22px);font-weight:800;line-height:1.5;max-width:600px;margin:14px auto 6px;color:#eaf2fb;}
+    .type-tag{display:inline-block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:#0b1220;background:var(--accent);border-radius:999px;padding:4px 12px;}
+    .type-tag.riddle{background:#ffb86b} .type-tag.missing{background:#8fe388} .type-tag.division{background:#7fd8ff} .type-tag.sequence{background:#e5a3ff}
+    .timer-bar{height:14px;background:#0c121c;border-radius:99px;overflow:hidden;border:1px solid #2b3a4f;margin:16px auto 6px;max-width:520px;}
+    #timerFill{height:100%;width:100%;background:linear-gradient(90deg,var(--success),var(--gold),var(--danger));transition:width .08s linear;}
+    .math-row{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:12px;}
+    #answerInput,#practiceAnswer{width:170px;font-size:28px;font-weight:950;text-align:center;border-radius:14px;border:2px solid #3c516d;background:#0d1420;color:var(--ink);padding:12px;font-family:inherit;}
+    #answerInput:focus,#practiceAnswer:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px rgba(118,169,255,.18);}
+    .teach{margin-top:14px;border:2px dashed rgba(255,209,102,.5);background:rgba(255,209,102,.07);border-radius:18px;padding:14px;}
+    .teach-fact{font-size:clamp(26px,6vw,40px);font-weight:950;color:var(--gold);margin:4px 0 8px;}
+    .flash-ok{animation:flashOk .45s ease}
+    .flash-bad{animation:flashBad .45s ease}
+    @keyframes flashOk{0%{box-shadow:0 0 0 0 rgba(55,214,122,.7)}100%{box-shadow:0 0 0 40px rgba(55,214,122,0)}}
+    @keyframes flashBad{0%,100%{transform:translateX(0)}20%{transform:translateX(-9px)}40%{transform:translateX(9px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
+
+    /* ---- numpad ---- */
+    .numpad{display:none;grid-template-columns:repeat(3,1fr);gap:8px;max-width:300px;margin:14px auto 0;}
+    .numpad.show{display:grid}
+    .numpad button{font-size:24px;font-weight:950;padding:14px 0;border-radius:14px;background:#182233;}
+    .numpad .np-go{background:linear-gradient(135deg,var(--success),#2ea86a);color:#04140b;border:0;}
+    .numpad .np-del{background:#2a1a22;border-color:#5a3040;}
+
+    /* ---- shop / practice ---- */
+    .shop-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px;}
+    .shop-card{background:rgba(13,21,32,.78);border:1px solid rgba(118,169,255,.18);border-radius:18px;padding:14px;text-align:left;display:grid;gap:8px;min-height:150px;}
+    .shop-card h3{margin:0;font-size:17px;display:flex;align-items:center;gap:8px;}
+    .shop-card p{font-size:13px;margin:0;color:#c9d6e4;line-height:1.35;}
+    .shop-card button{width:100%;margin-top:auto;border-radius:12px;padding:10px 12px;}
+    .shop-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--muted);font-weight:850;}
+    .shop-balance{display:inline-flex;gap:6px;align-items:center;border:1px solid rgba(255,209,102,.3);background:rgba(255,209,102,.1);border-radius:999px;padding:8px 12px;font-weight:950;color:#ffe066;}
+    .shop-actions{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;margin-top:18px;}
+    .shop-actions button{min-width:150px;}
+    @media(max-width:620px){.shop-grid{grid-template-columns:1fr}}
+    .chip-row{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin:12px auto;max-width:560px;}
+    .setup{display:grid;gap:14px;margin:18px auto 6px;max-width:620px;text-align:left;}
+    .setup-group{background:rgba(13,21,32,.6);border:1px solid rgba(118,169,255,.14);border-radius:16px;padding:12px 14px;}
+    .setup-group h4{margin:0 0 3px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:900;}
+    .setup-group .hint{margin:0 0 9px;font-size:12px;color:#7d8ea0;line-height:1.35;}
+    .setup-group .chip-row{margin:0;justify-content:flex-start;max-width:none;}
+    .setup-group .chip{font-size:13px;padding:7px 12px;}
+    .sub-row{margin-top:9px;padding-top:9px;border-top:1px dashed rgba(118,169,255,.16);}
+    .setup-summary{font-size:13px;color:#9fb0c1;margin:10px auto 0;max-width:620px;line-height:1.5;}
+    .setup-summary b{color:var(--ink)}
+    .chip{border-radius:999px;padding:8px 14px;font-weight:900;font-size:14px;background:#131c28;border:1px solid #33465f;color:var(--muted);}
+    .chip.on{background:rgba(118,169,255,.18);border-color:var(--accent);color:var(--ink);}
+
+    /* ---- mastery dashboard ---- */
+    .heat{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;max-width:520px;margin:16px auto;}
+    .heat div{aspect-ratio:1;border-radius:4px;display:grid;place-items:center;font-size:9px;font-weight:900;color:rgba(255,255,255,.55);}
+    .heat .hd{background:transparent;color:var(--muted);font-size:10px}
+    .heat-key{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:6px}
+    .heat-key span{display:inline-flex;align-items:center;gap:5px}
+    .heat-key i{width:12px;height:12px;border-radius:3px;display:inline-block}
+    .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:16px 0;}
+    .stat-box{background:rgba(13,21,32,.7);border:1px solid rgba(118,169,255,.16);border-radius:14px;padding:10px;}
+    .stat-box b{display:block;font-size:22px;font-weight:950;}
+    .stat-box span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:800;}
+    .worst-list{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:8px}
+    .worst-list span{background:rgba(255,77,94,.14);border:1px solid rgba(255,77,94,.4);color:#ffc2c9;border-radius:10px;padding:6px 11px;font-weight:900;font-size:15px}
+
+    /* ---- scientist ---- */
+    .scientist-card{display:grid;grid-template-columns:minmax(200px,.9fr) minmax(250px,1.1fr);gap:clamp(14px,4vw,30px);align-items:center;text-align:left;}
+    .scientist-copy h2{font-size:clamp(26px,5vw,48px);margin:0 0 12px;}
+    .scientist-copy p{margin:0 0 14px;text-align:left;}
+    .scientist-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
+    .scientist-actions button{width:150px;height:52px;text-align:center;margin-top:0;display:inline-grid;place-items:center;border-radius:16px;font-size:16px;padding:0;}
+    .scientist-actions .scientist-alt{background:#131c28;color:var(--ink);border:1px solid #76a9ff;}
+    .mad-scientist{position:relative;height:340px;display:grid;place-items:center;animation:floaty 1.9s ease-in-out infinite;}
+    @keyframes floaty{50%{transform:translateY(-7px) rotate(-1deg)}}
+    .hair{position:absolute;top:6px;width:250px;height:160px;background:radial-gradient(circle at 20% 58%,#dfe6ee 0 18px,transparent 19px),radial-gradient(circle at 34% 32%,#c2ccd8 0 26px,transparent 27px),radial-gradient(circle at 55% 20%,#e5ebf2 0 35px,transparent 36px),radial-gradient(circle at 75% 34%,#b8c3cf 0 28px,transparent 29px),radial-gradient(circle at 88% 60%,#dde5ed 0 20px,transparent 21px);filter:drop-shadow(0 8px 0 #637181);}
+    .head{position:absolute;top:68px;width:168px;height:184px;background:#f0c7a4;border:5px solid #1b2431;border-radius:44% 44% 50% 50%;box-shadow:inset 0 -16px 0 rgba(153,91,69,.18);}
+    .brow{position:absolute;top:54px;width:44px;height:10px;background:#1b2431;border-radius:99px;}.brow.left{left:34px;transform:rotate(15deg)}.brow.right{right:34px;transform:rotate(-15deg)}
+    .eye{position:absolute;top:72px;width:28px;height:28px;background:white;border:4px solid #1b2431;border-radius:50%;}.eye.left{left:40px}.eye.right{right:40px}.eye::after{content:"";position:absolute;left:8px;top:8px;width:9px;height:9px;background:#111823;border-radius:50%;animation:darty 1.2s infinite steps(2)}@keyframes darty{50%{transform:translateX(4px)}}
+    .nose{position:absolute;left:74px;top:92px;width:22px;height:42px;border-left:4px solid #9a6f58;border-bottom:4px solid #9a6f58;border-radius:0 0 0 12px;}
+    .smile{position:absolute;left:32px;top:132px;width:104px;height:34px;background:#270b12;border:4px solid #1b2431;border-radius:0 0 80px 80px;overflow:hidden;}.smile::before{content:"";position:absolute;left:7px;right:7px;top:0;height:12px;background:repeating-linear-gradient(90deg,#fff 0 11px,#dce6ef 11px 13px);}.smile::after{content:"";position:absolute;left:21px;right:20px;bottom:3px;height:9px;background:#ff6f8b;border-radius:50%;}
+    .coat{position:absolute;top:238px;width:240px;height:110px;background:#f3f7fb;border:5px solid #1b2431;border-radius:18px 18px 22px 22px;}.coat::before{content:"";position:absolute;left:86px;top:0;border-left:31px solid transparent;border-right:31px solid transparent;border-top:68px solid #cfd9e5;}.tie{position:absolute;top:245px;width:28px;height:76px;background:#ff4d5e;clip-path:polygon(50% 0,100% 22%,72% 100%,28% 100%,0 22%);}.arm{position:absolute;top:252px;width:64px;height:22px;background:#f3f7fb;border:5px solid #1b2431;border-radius:18px}.arm.left{left:18px;transform:rotate(26deg)}.arm.right{right:18px;transform:rotate(-26deg)}
+    .beaker{position:absolute;right:42px;top:280px;width:44px;height:52px;border:4px solid #1b2431;border-top:0;border-radius:0 0 18px 18px;background:linear-gradient(180deg,transparent 35%,#37d67a 36%);transform:rotate(-10deg)}.beaker::before{content:"";position:absolute;left:11px;top:-24px;width:16px;height:24px;border:4px solid #1b2431;border-bottom:0;background:#dff7ff;}
+
+    /* ---- touch controls ---- */
+    .touch-ui{display:none;grid-template-columns:1fr auto;gap:12px;align-items:end;margin-top:4px;}
+    .touch-ui.show{display:grid}
+    .dpad{display:grid;grid-template-columns:repeat(3,64px);grid-template-rows:repeat(3,64px);gap:6px;}
+    .dpad button{font-size:24px;border-radius:16px;padding:0;background:rgba(24,34,51,.9);}
+    .dpad .sp{visibility:hidden}
+    .tool-pad{display:grid;grid-template-columns:repeat(2,minmax(72px,1fr));gap:6px;}
+    .tool-pad button{font-size:13px;padding:12px 6px;border-radius:14px;line-height:1.2;}
+    .tool-pad button.on{border-color:var(--gold);color:var(--gold)}
+    @media(max-width:1080px){.hud{grid-template-columns:repeat(5,1fr)}}
+    @media(max-width:900px){.play-area{grid-template-columns:1fr}.legend{order:2}.hud{grid-template-columns:repeat(3,1fr)}.legend-list{grid-template-columns:1fr 1fr;display:grid}}
+    @media(max-width:760px){.scientist-card{grid-template-columns:1fr;text-align:center}.scientist-copy p{text-align:center}.scientist-actions{justify-content:center}.mad-scientist{height:300px;transform:scale(.85)}.heat{gap:2px}}
+    @media(max-width:520px){.hud{grid-template-columns:repeat(2,1fr)}.legend-list{grid-template-columns:1fr}.dpad{grid-template-columns:repeat(3,56px);grid-template-rows:repeat(3,56px)}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <main class="game-shell" aria-label="Mouse Brainz game">
+      <header>
+        <div>
+          <h1>mouse brainz <span style="font-size:.5em;color:var(--muted)">v2</span></h1>
+          <p class="subtitle">Escape the maze. Beat the beasts. Own your times tables.</p>
+        </div>
+        <div class="top-controls">
+          <button id="newGameBtn" class="secondary">New game</button>
+          <button id="shopBtn" class="secondary">Shop</button>
+          <button id="practiceBtn" class="secondary">Practice</button>
+          <button id="statsBtn" class="secondary">Progress</button>
+          <button id="timerBtn" class="secondary" title="Toggle the countdown (T)">⏱ On</button>
+          <button id="soundBtn" class="secondary" aria-pressed="true">🔊</button>
+          <button id="pauseBtn" class="secondary">Pause</button>
+        </div>
+      </header>
+      <section class="hud" aria-label="game stats">
+        <div class="hud-card"><span class="hud-label">Level</span><span class="hud-value" id="hudLevel">1</span></div>
+        <div class="hud-card"><span class="hud-label">Gates</span><span class="hud-value" id="hudGates">0/3</span></div>
+        <div class="hud-card"><span class="hud-label">Cheese</span><span class="hud-value" id="hudCheese">0</span></div>
+        <div class="hud-card"><span class="hud-label">Streak</span><span class="hud-value" id="hudStreak">0</span></div>
+        <div class="hud-card"><span class="hud-label">Maze time</span><span class="hud-value" id="hudTime">0:00</span></div>
+        <div class="hud-card"><span class="hud-label">Ladders</span><span class="hud-value" id="hudLadders">0</span></div>
+        <div class="hud-card"><span class="hud-label">Slingshot</span><span class="hud-value" id="hudSlingshot">0</span></div>
+        <div class="hud-card"><span class="hud-label">Potions</span><span class="hud-value" id="hudInvis">0</span></div>
+        <div class="hud-card selected-card"><span class="hud-label">Selected tool</span><span class="hud-value" id="hudTool">None</span></div>
+      </section>
+      <div class="play-area">
+        <div class="stage-col">
+          <div class="banner-slot"><div class="banner" id="banner" role="status" aria-live="polite"></div></div>
+          <div class="stage-wrap"><canvas id="stage" width="900" height="900"></canvas></div>
+        </div>
+        <aside class="legend" aria-label="maze key">
+          <h2>Maze key</h2>
+          <div class="legend-list">
+            <div class="legend-item"><span class="legend-icon" style="background:rgba(40,199,111,.22)">S</span><span><b>Start</b><br>Mouse begins here.</span></div>
+            <div class="legend-item"><span class="legend-icon" style="background:rgba(255,122,144,.30)">E</span><span><b>Exit</b><br>Clear every gate first.</span></div>
+            <div class="legend-item"><span class="legend-icon">🧀</span><span><b>Cheese</b><br>Currency for the shop.</span></div>
+            <div class="legend-item"><span class="legend-icon">?</span><span><b>Brain gate</b><br>Math lock on the main path.</span></div>
+            <div class="legend-item"><span class="legend-icon">🪜</span><span><b>Ladder</b><br>Hop one wall.</span></div>
+            <div class="legend-item"><span class="legend-icon">🎯</span><span><b>Slingshot</b><br>Wall, trap or beast.</span></div>
+            <div class="legend-item"><span class="legend-icon">🧪</span><span><b>Potion</b><br>Invisible for 7 seconds.</span></div>
+            <div class="legend-item"><span class="legend-icon">CP</span><span><b>Checkpoint</b><br>Respawn point.</span></div>
+            <div class="legend-item"><span class="legend-icon" style="color:#ff4d5e">!</span><span><b>Trap door</b><br>Back to checkpoint.</span></div>
+            <div class="legend-item"><span class="legend-icon" style="color:#7b8794">◉</span><span><b>Lab drone</b><br>1 problem. Slow.</span></div>
+            <div class="legend-item"><span class="legend-icon" style="color:#ff9d5c">◉</span><span><b>Rat-bot</b><br>2 problems. Quicker.</span></div>
+            <div class="legend-item"><span class="legend-icon" style="color:#ff4d5e">◉</span><span><b>Cyber-cat</b><br>3 problems. Fast + short timer.</span></div>
+            <div class="legend-item"><span class="legend-icon" style="color:#c86bff">◉</span><span><b>Brain Vat</b><br>Boss. 5 problems, tight clock.</span></div>
+          </div>
+        </aside>
+      </div>
+      <div class="touch-ui" id="touchUI">
+        <div class="dpad">
+          <button class="sp"></button><button data-move="up" aria-label="up">▲</button><button class="sp"></button>
+          <button data-move="left" aria-label="left">◀</button><button class="sp"></button><button data-move="right" aria-label="right">▶</button>
+          <button class="sp"></button><button data-move="down" aria-label="down">▼</button><button class="sp"></button>
+        </div>
+        <div class="tool-pad">
+          <button data-tool="slingshot">🎯 Shot</button>
+          <button data-tool="ladder">🪜 Ladder</button>
+          <button data-tool="potion">🧪 Potion</button>
+          <button id="touchUse" class="primary" style="margin:0">USE</button>
+        </div>
+      </div>
+      <p class="note" id="helpNote">Move: Arrow Keys / WASD (or swipe the maze). Tab cycles tools, Space uses one. L = ladder, F = slingshot, I = potion, T = timer on/off, H = hint, P = practice, B = shop, M = progress.</p>
+    </main>
+  </div>
+
+  <div id="startOverlay" class="overlay show">
+    <div class="modal">
+      <h2>Mouse Brainz v2</h2>
+      <p>Help the mouse escape. <b>Brain gates</b> lock the main path and <b>beasts</b> patrol the halls. Every one of them is opened with multiplication.</p>
+      <p>The game watches which facts you know cold and which ones you fumble, then feeds you the shaky ones more often. Answer fast to build a streak and earn bonus cheese.</p>
+      <div class="setup" id="setupPanel"></div>
+      <p class="setup-summary" id="setupSummary"></p>
+      <p class="note" id="profileNote"></p>
+      <button id="startBtn" class="primary">Start</button>
+      <button id="resetProfileBtn" class="secondary" style="margin-left:8px">Reset progress</button>
+    </div>
+  </div>
+
+  <div id="mathOverlay" class="overlay" role="dialog" aria-modal="true">
+    <div class="modal" id="mathModal">
+      <div class="battle-head">
+        <h2 id="mathTitle" style="margin:0">Brain gate</h2>
+        <span class="hp-pips" id="hpPips"></span>
+        <span class="combo-badge" id="comboBadge" style="display:none">🔥 <span id="comboText">x2</span></span>
+      </div>
+      <p id="mathPrompt" class="note"></p>
+      <span class="type-tag" id="typeTag">Product</span>
+      <div class="problem-face" id="problemFace">7 × 8</div>
+      <div class="riddle-face" id="riddleFace" style="display:none"></div>
+      <div class="timer-bar"><div id="timerFill"></div></div>
+      <div class="math-row">
+        <input id="answerInput" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="your answer" />
+        <button id="submitAnswer" class="primary">Submit</button>
+      </div>
+      <div class="numpad" id="numpad">
+        <button data-np="1">1</button><button data-np="2">2</button><button data-np="3">3</button>
+        <button data-np="4">4</button><button data-np="5">5</button><button data-np="6">6</button>
+        <button data-np="7">7</button><button data-np="8">8</button><button data-np="9">9</button>
+        <button class="np-del" data-np="del">⌫</button><button data-np="0">0</button><button class="np-go" data-np="go">✓</button>
+      </div>
+      <div class="teach" id="teachBox" style="display:none">
+        <p class="note" style="margin:0">Lock it in — type the answer to keep going.</p>
+        <div class="teach-fact" id="teachFact">7 × 8 = 56</div>
+        <p class="note" id="teachHint" style="margin:0"></p>
+      </div>
+      <p id="mathFeedback" class="note"></p>
+    </div>
+  </div>
+
+  <div id="shopOverlay" class="overlay" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h2>Cheese Shop</h2>
+      <p>Spend cheese before the next dangerous stretch. Select tools with Tab, use with Space.</p>
+      <div class="shop-balance">🧀 <span id="shopCheese">0</span> cheese</div>
+      <div class="shop-grid">
+        <div class="shop-card">
+          <h3>🪜 Ladder</h3>
+          <p>Climb over one wall. The wall stays intact, so beasts cannot follow you through.</p>
+          <div class="shop-meta"><span>Cost: 3 cheese</span><span>+1 ladder</span></div>
+          <button class="primary" data-buy="ladder">Buy ladder</button>
+        </div>
+        <div class="shop-card">
+          <h3>🎯 Slingshot Shot</h3>
+          <p>Fire the way you are facing to knock out a beast, clear a trap, or crack a wall.</p>
+          <div class="shop-meta"><span>Cost: 4 cheese</span><span>+1 shot</span></div>
+          <button class="primary" data-buy="slingshot">Buy shot</button>
+        </div>
+        <div class="shop-card">
+          <h3>🎯🎯 3-Shot Bundle</h3>
+          <p>Better value for the deep levels where cyber-cats travel in packs.</p>
+          <div class="shop-meta"><span>Cost: 10 cheese</span><span>+3 shots</span></div>
+          <button class="primary" data-buy="slingshot3">Buy bundle</button>
+        </div>
+        <div class="shop-card">
+          <h3>🧪 Invisibility Potion</h3>
+          <p>Sneak past beasts for 7 seconds. It does not let you walk through walls.</p>
+          <div class="shop-meta"><span>Cost: 5 cheese</span><span>+1 potion</span></div>
+          <button class="primary" data-buy="potion">Buy potion</button>
+        </div>
+        <div class="shop-card">
+          <h3>⏱️ Slow-Mo Serum</h3>
+          <p>Adds 3 extra seconds to every problem timer for the rest of this level.</p>
+          <div class="shop-meta"><span>Cost: 8 cheese</span><span>+3s per problem</span></div>
+          <button class="primary" data-buy="slowmo">Buy serum</button>
+        </div>
+        <div class="shop-card">
+          <h3>💡 Hint Chip</h3>
+          <p>During a battle, press H to reveal a hint (like 7×8 = 7×4 doubled) without losing the clock.</p>
+          <div class="shop-meta"><span>Cost: 4 cheese</span><span>+1 hint</span></div>
+          <button class="primary" data-buy="hint">Buy hint</button>
+        </div>
+      </div>
+      <p id="shopMessage" class="note"></p>
+      <div class="shop-actions"><button id="closeShopBtn" class="primary">Back to maze</button></div>
+    </div>
+  </div>
+
+  <div id="practiceOverlay" class="overlay" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h2>Practice Lab</h2>
+      <p>No beasts, no timer. Every 5 in a row earns +1 cheese. Pick which tables to drill:</p>
+      <div class="chip-row" id="practiceTables"></div>
+      <p id="practiceStats" class="note">Streak: 0</p>
+      <div class="problem-face" id="practiceProblem">2 × 2</div>
+      <div class="math-row">
+        <input id="practiceAnswer" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="practice answer" />
+        <button id="practiceSubmit" class="primary">Check</button>
+      </div>
+      <p id="practiceFeedback" class="note"></p>
+      <div class="shop-actions">
+        <button id="practiceNext" class="secondary">Skip problem</button>
+        <button id="closePracticeBtn" class="primary">Back to game</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="statsOverlay" class="overlay" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h2>Progress</h2>
+      <p class="note">Every fact from 2×2 to 12×12. Darker green means answered correctly, fast, more than once.</p>
+      <div class="stat-row" id="statRow"></div>
+      <div class="heat" id="heatGrid"></div>
+      <div class="heat-key">
+        <span><i style="background:#1c2430"></i> not seen</span>
+        <span><i style="background:#7a2836"></i> shaky</span>
+        <span><i style="background:#8a6d20"></i> learning</span>
+        <span><i style="background:#1f7a4a"></i> solid</span>
+        <span><i style="background:#37d67a"></i> mastered</span>
+      </div>
+      <p class="note" style="margin-top:16px"><b>Work on these next:</b></p>
+      <div class="worst-list" id="worstList"></div>
+      <p class="note" style="margin-top:18px"><b>Maze times</b> — best run per level</p>
+      <div class="worst-list" id="mazeList"></div>
+      <div class="shop-actions"><button id="closeStatsBtn" class="primary">Close</button></div>
+    </div>
+  </div>
+
+  <div id="scientistOverlay" class="overlay" role="dialog" aria-modal="true">
+    <div class="modal scientist-card">
+      <div class="mad-scientist" aria-label="cartoon mad scientist">
+        <div class="hair"></div><div class="head"><div class="brow left"></div><div class="brow right"></div><div class="eye left"></div><div class="eye right"></div><div class="nose"></div><div class="smile"></div></div><div class="coat"></div><div class="tie"></div><div class="arm left"></div><div class="arm right"></div><div class="beaker"></div>
+      </div>
+      <div class="scientist-copy">
+        <h2 id="scientistTitle">Very clever, mouse!</h2>
+        <p id="scientistText">Let&apos;s see if you can solve my next maze!</p>
+        <p class="note" id="scientistStats" style="text-align:left"></p>
+        <div class="scientist-actions">
+          <button id="continueBtn" class="primary">Continue</button>
+          <button id="scientistShopBtn" class="primary scientist-alt">Shop</button>
+          <button id="restartFromScientist" class="primary scientist-alt">Restart</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (()=>{
+    'use strict';
+    const VERSION='2.0.0';
+    const $=id=>document.getElementById(id);
+
+    /* ============================================================
+       1. MASTERY ENGINE
+       Tracks every multiplication fact 2x2 .. 12x12 in a Leitner
+       box system and biases problem selection toward weak facts.
+       ============================================================ */
+    const MIN_F=2, MAX_F=12;
+    const STORE_KEY='mouseBrainz.v2.profile';
+    // Leitner boxes: 0 = brand new / just missed, 5 = mastered cold.
+    const BOX_WEIGHT=[12,8,5,3,1.5,0.6];
+    const BOX_COLORS=['#7a2836','#8a4b25','#8a6d20','#3f7a3a','#1f7a4a','#37d67a'];
+    const FAST_MS=3200;      // answered under this = "snap", counts toward mastery
+    const OK_MS=7000;        // answered under this = fine, but not snappy
+
+    function factKey(a,b){return Math.min(a,b)+'x'+Math.max(a,b);}
+
+    const Profile={
+      facts:{},        // key -> {n,ok,miss,box,best,last}
+      answered:0,      // total problems answered (used as a logical clock)
+      bestStreak:0,
+      levelReached:1,
+      sound:true,
+      mazes:{},        // level -> {best, runs, total}  (seconds)
+      load(){
+        try{
+          const raw=localStorage.getItem(STORE_KEY);
+          if(raw){
+            const p=JSON.parse(raw);
+            if(p&&typeof p==='object'){
+              this.facts=p.facts||{};
+              this.answered=p.answered||0;
+              this.bestStreak=p.bestStreak||0;
+              this.levelReached=p.levelReached||1;
+              this.sound=p.sound!==false;
+              this.mazes=p.mazes||{};
+            }
+          }
+        }catch(e){/* private mode or corrupt data: run in memory */}
+      },
+      save(){
+        try{
+          localStorage.setItem(STORE_KEY,JSON.stringify({
+            v:VERSION,facts:this.facts,answered:this.answered,
+            bestStreak:this.bestStreak,levelReached:this.levelReached,sound:this.sound,mazes:this.mazes
+          }));
+        }catch(e){/* ignore quota / private mode */}
+      },
+      reset(){this.facts={};this.answered=0;this.bestStreak=0;this.levelReached=1;this.mazes={};this.save();},
+      /* Returns {best, isNew, runs, avg} for a finished maze. */
+      recordMaze(lvl,seconds){
+        const k=String(lvl);
+        if(!this.mazes[k])this.mazes[k]={best:0,runs:0,total:0};
+        const m=this.mazes[k];
+        const isNew=!m.best||seconds<m.best;
+        if(isNew)m.best=seconds;
+        m.runs++;m.total+=seconds;
+        this.save();
+        return {best:m.best,isNew,runs:m.runs,avg:m.total/m.runs};
+      },
+      rec(a,b){
+        const k=factKey(a,b);
+        if(!this.facts[k])this.facts[k]={n:0,ok:0,miss:0,box:0,best:0,last:-999};
+        return this.facts[k];
+      },
+      // Record a result. ms = time taken in milliseconds.
+      record(a,b,correct,ms){
+        const r=this.rec(a,b);
+        r.n++; this.answered++; r.last=this.answered;
+        if(correct){
+          r.ok++;
+          if(!r.best||ms<r.best)r.best=ms;
+          // Only promote a box when the answer was reasonably quick.
+          // Slow-but-correct holds the box: recall is not yet automatic.
+          if(ms<=FAST_MS)r.box=Math.min(5,r.box+1);        // instant recall -> can reach mastered
+          else if(ms<=OK_MS)r.box=Math.min(4,r.box+1);      // steady -> "solid" but not automatic
+          else r.box=Math.min(2,r.box+1);                   // worked it out slowly -> keep drilling
+        }else{
+          r.miss++;
+          r.box=Math.max(0,r.box-2);   // a miss drops it two boxes
+        }
+        this.save();
+        return r;
+      }
+    };
+    Profile.load();
+
+    /* ------------------------------------------------------------
+       SETTINGS — focus area, problem difficulty and timer speed are
+       three independent dials, chosen before a run and (for the
+       timer) changeable at any moment during play.
+       ------------------------------------------------------------ */
+    const SET_KEY='mouseBrainz.v2.settings';
+    const TIMER_MODES={
+      off:     {label:'Off',      mul:0,    hint:'No countdown at all. Pure practice.'},
+      relaxed: {label:'Relaxed',  mul:1.6,  hint:'60% more time. Good for a new table.'},
+      standard:{label:'Standard', mul:1.0,  hint:'The balanced default.'},
+      fast:    {label:'Fast',     mul:0.75, hint:'25% tighter. Pushes for recall, not counting.'},
+      blitz:   {label:'Blitz',    mul:0.55, hint:'Brutal. Only instant answers survive.'}
+    };
+    const DIFF_PRESETS={
+      auto:   {label:'Auto',     tables:null,                        chain:null, hint:'Tables unlock as the levels climb (2s/5s/10s first, 12s by level 9).'},
+      1:      {label:'Warm-up',  tables:[2,5,10],                    chain:1,    hint:'The three easiest tables only.'},
+      2:      {label:'Easy',     tables:[2,3,4,5,10],                chain:2,    hint:'Adds the 3s and 4s.'},
+      3:      {label:'Standard', tables:[2,3,4,5,6,7,8,9,10],        chain:2,    hint:'Everything up to the 10s.'},
+      4:      {label:'Hard',     tables:[2,3,4,5,6,7,8,9,10,11,12],  chain:3,    hint:'The full 2-12 grid.'},
+      5:      {label:'Brutal',   tables:[3,4,6,7,8,9,11,12],         chain:4,    hint:'Only the facts kids actually get stuck on.'}
+    };
+    const FREEBIES=[2,5,10,11];   // the "shortcut" partners most kids already own
+
+    const Settings={
+      types:{product:true,missing:true,division:true,sequence:true,riddle:true},
+      focus:'mix',            // 'tables' | 'mix' | 'custom'
+      tables:null,            // null = follow the difficulty preset; [7] = drill the 7s
+      dropFreebies:false,     // inside the chosen tables, skip x2 / x5 / x10 / x11
+      diff:'auto',            // key into DIFF_PRESETS
+      timer:'standard',       // key into TIMER_MODES
+      startLevel:1,
+      load(){
+        try{
+          const raw=localStorage.getItem(SET_KEY);
+          if(raw){
+            const o=JSON.parse(raw);
+            if(o&&typeof o==='object'){
+              if(o.types)this.types=Object.assign(this.types,o.types);
+              if(o.focus)this.focus=o.focus;
+              this.tables=Array.isArray(o.tables)&&o.tables.length?o.tables:null;
+              this.dropFreebies=!!o.dropFreebies;
+              if(o.diff!==undefined&&DIFF_PRESETS[o.diff])this.diff=o.diff;
+              if(o.timer&&TIMER_MODES[o.timer])this.timer=o.timer;
+              this.startLevel=Math.max(1,Math.min(15,o.startLevel||1));
+            }
+          }
+        }catch(e){}
+      },
+      save(){try{localStorage.setItem(SET_KEY,JSON.stringify({
+        types:this.types,focus:this.focus,tables:this.tables,dropFreebies:this.dropFreebies,
+        diff:this.diff,timer:this.timer,startLevel:this.startLevel}));}catch(e){}}
+    };
+    Settings.load();
+    let timerLastOn=Settings.timer==='off'?'standard':Settings.timer;
+
+    /* Auto mode keeps the original level-by-level unlock ladder. */
+    const UNLOCK=[[2,5,10],[2,5,10,3],[2,3,4,5,10],[2,3,4,5,6,10],[2,3,4,5,6,7,10],
+                  [2,3,4,5,6,7,8,10],[2,3,4,5,6,7,8,9,10],[2,3,4,5,6,7,8,9,10,11],
+                  [2,3,4,5,6,7,8,9,10,11,12]];
+    /* The single source of truth for which tables are in play. An explicit
+       table pick always wins; otherwise the difficulty preset decides; only
+       on Auto does the maze level have any say. */
+    function tablesForLevel(l){
+      if(Settings.tables&&Settings.tables.length)return Settings.tables.slice();
+      const preset=DIFF_PRESETS[Settings.diff];
+      if(preset&&preset.tables)return preset.tables.slice();
+      return UNLOCK[Math.min(Math.max(1,l)-1,UNLOCK.length-1)];
+    }
+    function chainForLevel(l){
+      const preset=DIFF_PRESETS[Settings.diff];
+      if(preset&&preset.chain)return preset.chain;
+      return Math.min(4,1+Math.floor((l-1)/3));
+    }
+    function timerMul(){return TIMER_MODES[Settings.timer].mul;}
+    function timerOff(){return timerMul()===0;}
+
+    /* Build the candidate pool of facts for this level. */
+    function factPool(tables){
+      const pool=[];
+      const drop=Settings.dropFreebies;
+      for(const t of tables)for(let b=MIN_F;b<=MAX_F;b++){
+        // "Drop the freebies" strips the x2/x5/x10/x11 partners so a focused
+        // drill on the 7s means 7x3, 7x4, 7x6, 7x7, 7x8, 7x9, 7x12 - the ones
+        // that actually need memorising.
+        if(drop&&FREEBIES.indexOf(b)>=0&&FREEBIES.indexOf(t)<0)continue;
+        pool.push({a:t,b});
+      }
+      if(!pool.length)for(const t of tables)for(let b=MIN_F;b<=MAX_F;b++)pool.push({a:t,b});
+      return pool;
+    }
+
+    /* Weighted pick. Weak, stale and never-seen facts float to the top;
+       facts asked in the last few questions are suppressed so the kid
+       is not just echoing the previous answer. */
+    let retryQueue=[];   // facts forced back in soon after a miss
+    function pickFact(tables){
+      if(retryQueue.length){
+        const due=retryQueue.findIndex(q=>Profile.answered>=q.due);
+        if(due>=0){const q=retryQueue.splice(due,1)[0];return {a:q.a,b:q.b};}
+      }
+      const pool=factPool(tables);
+      let total=0;const weights=new Array(pool.length);
+      for(let i=0;i<pool.length;i++){
+        const f=pool[i], r=Profile.facts[factKey(f.a,f.b)];
+        let w;
+        if(!r){w=7;}                                  // never seen
+        else{
+          w=BOX_WEIGHT[Math.max(0,Math.min(5,r.box))];
+          const since=Profile.answered-r.last;
+          if(since<3)w*=0.08;                         // just asked
+          else if(since<8)w*=0.5;
+          else if(since>40)w*=1.4;                    // going stale, review it
+          if(r.miss>0)w*=1+Math.min(1.2,r.miss*0.35); // historically troublesome
+          if(r.best&&r.best>OK_MS)w*=1.3;             // never answered quickly
+        }
+        // The square facts and the x1/x2/x10 shortcuts are cheap; downweight slightly.
+        if(f.a===10||f.b===10||f.a===2||f.b===2)w*=0.7;
+        weights[i]=w;total+=w;
+      }
+      let roll=rng()*total;
+      for(let i=0;i<pool.length;i++){roll-=weights[i];if(roll<=0)return pool[i];}
+      return pool[pool.length-1];
+    }
+
+    /* ============================================================
+       2. PROBLEM GENERATOR (5 flavours, all built on one fact)
+       ============================================================ */
+    const RIDDLES=[
+      (a,b)=>`${a} lab mice each hide ${b} crumbs. How many crumbs in total?`,
+      (a,b)=>`A maze has ${a} corridors. Each corridor holds ${b} cheese wheels. How many wheels?`,
+      (a,b)=>`The scientist built ${a} cages with ${b} rat-bots inside each one. How many rat-bots?`,
+      (a,b)=>`${a} shelves in the lab. Each shelf has ${b} beakers. How many beakers altogether?`,
+      (a,b)=>`Every ${b} seconds a drone takes one step. How far has it stepped after ${a}×${b} seconds... wait, how many steps in ${a} batches of ${b} seconds is ${a}×${b} seconds — how many seconds is that?`,
+      (a,b)=>`A conveyor drops ${b} cheese cubes every minute for ${a} minutes. How many cubes fall?`,
+      (a,b)=>`${a} teams of ${b} mice line up for the escape. How many mice are lined up?`,
+      (a,b)=>`The vault door needs ${a} rows of ${b} buttons pressed. How many presses is that?`
+    ];
+    const RIDDLES_DIV=[
+      (p,a)=>`${p} crumbs are shared evenly by ${a} mice. How many crumbs does each mouse get?`,
+      (p,a)=>`${p} beakers are packed into ${a} equal crates. How many beakers per crate?`,
+      (p,a)=>`A hallway of ${p} tiles is split into ${a} equal sections. How many tiles per section?`
+    ];
+
+    // Mix of problem types as levels climb. Weights, not percentages.
+    function typeWeights(level){
+      if(level<=1)return {product:10,missing:1,division:0,sequence:1,riddle:0};
+      if(level<=3)return {product:8,missing:3,division:2,sequence:1.5,riddle:1};
+      if(level<=6)return {product:6,missing:3,division:3,sequence:1.5,riddle:2};
+      return {product:5,missing:3,division:3.5,sequence:1.5,riddle:2.5};
+    }
+    function pickType(level,forceProduct){
+      if(forceProduct)return 'product';
+      const base=typeWeights(level);
+      // Honour the player's chosen focus: anything switched off gets zero weight.
+      const w={};let total=0;
+      for(const k in base){
+        const on=Settings.types[k];
+        w[k]=on?base[k]:0;
+        total+=w[k];
+      }
+      if(total<=0)return Settings.types.product===false?
+        (Object.keys(Settings.types).find(k=>Settings.types[k])||'product'):'product';
+      let roll=rng()*total;
+      for(const k in w){roll-=w[k];if(roll<=0)return k;}
+      return 'product';
+    }
+
+    // Base seconds per type before difficulty scaling.
+    const BASE_TIME={product:9,missing:11,division:11,sequence:13,riddle:22};
+    const MIN_TIME={product:4,missing:5,division:5,sequence:6,riddle:11};
+
+    /* Build one problem.
+       tier    : 0-3, harder beasts squeeze the clock
+       level   : global difficulty ramp
+       bonusMs : Slow-Mo Serum from the shop */
+    function makeProblem(level,tier,forceProduct){
+      const tables=tablesForLevel(level);
+      const f=pickFact(tables);
+      let a=f.a,b=f.b;
+      if(rng()<0.5){const t=a;a=b;b=t;}          // show both orders
+      const product=a*b;
+      const type=pickType(level,forceProduct);
+      const r=Profile.facts[factKey(a,b)];
+      const known=r&&r.box>=4;
+
+      let display='',riddle='',answer=product,tag=type;
+      if(type==='product'){
+        display=`${a} × ${b}`;answer=product;
+      }else if(type==='missing'){
+        if(rng()<0.5){display=`${a} × <span class="blank">?</span> = ${product}`;answer=b;}
+        else{display=`<span class="blank">?</span> × ${b} = ${product}`;answer=a;}
+      }else if(type==='division'){
+        display=`${product} ÷ ${a}`;answer=b;
+      }else if(type==='sequence'){
+        const step=b, start=step*Math.max(1,Math.floor(rng()*3)+1);
+        const seq=[start,start+step,start+step*2];
+        const hideLast=rng()<0.7;
+        if(hideLast){display=`${seq[0]}, ${seq[1]}, ${seq[2]}, <span class="blank">?</span>`;answer=start+step*3;}
+        else{display=`${seq[0]}, <span class="blank">?</span>, ${seq[2]}`;answer=seq[1];}
+        a=step;b=Math.round(answer/step);          // still credits the step's table
+      }else{ // riddle
+        if(rng()<0.3){
+          riddle=RIDDLES_DIV[Math.floor(rng()*RIDDLES_DIV.length)](product,a);answer=b;
+        }else{
+          riddle=RIDDLES[Math.floor(rng()*RIDDLES.length)](a,b);answer=product;
+        }
+      }
+
+      const tierMul=[1,0.88,0.76,0.66][Math.max(0,Math.min(3,tier))];
+      const levelMul=Math.max(0.6,1-(level-1)*0.03);
+      const knownMul=known?0.85:1;                 // squeeze facts he already owns
+      const speed=timerMul();
+      let time=BASE_TIME[type]*tierMul*levelMul*knownMul*(speed||1)+slowMoBonus;
+      // Relaxed mode may sit above the floor; the floor still protects the fast modes.
+      time=Math.max(MIN_TIME[type]*Math.min(1,speed||1),Math.round(time*10)/10);
+
+      return {a,b,type,display,riddle,answer,time,left:time,tag,started:0};
+    }
+
+    /* A hint that teaches strategy rather than just giving the answer. */
+    function hintFor(a,b){
+      const hi=Math.max(a,b),lo=Math.min(a,b);
+      if(lo===9||hi===9){const o=lo===9?hi:lo;return `×9 trick: ${o}×10 = ${o*10}, then subtract ${o} → ${o*10-o}.`;}
+      if(lo===5||hi===5){const o=lo===5?hi:lo;return `×5 trick: half of ${o}×10 (${o*10}) → ${o*5}.`;}
+      if(lo===4||hi===4){const o=lo===4?hi:lo;return `×4 trick: double ${o} (${o*2}), then double again → ${o*4}.`;}
+      if(lo===6||hi===6){const o=lo===6?hi:lo;return `×6 trick: ${o}×5 = ${o*5}, add one more ${o} → ${o*6}.`;}
+      if(lo===8||hi===8){const o=lo===8?hi:lo;return `×8 trick: double ${o} three times: ${o*2} → ${o*4} → ${o*8}.`;}
+      if(lo===11&&hi<10)return `×11 trick: just repeat the digit → ${hi}${hi}.`;
+      if(lo===12||hi===12){const o=lo===12?hi:lo;return `×12 trick: ${o}×10 = ${o*10}, plus ${o}×2 = ${o*2} → ${o*12}.`;}
+      if(lo===7||hi===7){const o=lo===7?hi:lo;return `×7 trick: ${o}×5 = ${o*5}, plus ${o}×2 = ${o*2} → ${o*7}.`;}
+      return `Break it up: ${a}×${b} = ${a}×${b-1} (${a*(b-1)}) plus one more ${a}.`;
+    }
+
+    /* ============================================================
+       3. GAME STATE
+       ============================================================ */
+    const canvas=$('stage'), ctx=canvas.getContext('2d');
+    const startOverlay=$('startOverlay'), mathOverlay=$('mathOverlay'), shopOverlay=$('shopOverlay'),
+          practiceOverlay=$('practiceOverlay'), scientistOverlay=$('scientistOverlay'), statsOverlay=$('statsOverlay');
+    const answerInput=$('answerInput'), timerFill=$('timerFill'), mathFeedback=$('mathFeedback');
+    const practiceAnswer=$('practiceAnswer');
+
+    const Keys={ArrowUp:false,ArrowRight:false,ArrowDown:false,ArrowLeft:false,KeyW:false,KeyA:false,KeyS:false,KeyD:false};
+    let state='start', lastTime=0, rng=Math.random;
+    let level=1, maze=null, items=[], enemies=[], particles=[], math=null, practice=null,
+        previousState='play', message='', messageT=0, enemyMoveClock=0, shake=0;
+    let requiredGates=0, solvedGates=0, slowMoBonus=0, mazeClock=0;
+    let streak=0, bestStreakThisRun=0, levelStats=null;
+    let practiceTables=null;   // null = follow level unlocks
+
+    const player={x:1,y:1,px:1,py:1,from:{x:1,y:1},to:{x:1,y:1},moving:false,t:0,dir:{x:1,y:0},
+      speed:7,cheese:0,ladders:0,slingshot:0,potions:0,invis:0,hints:0,
+      checkpoint:{x:1,y:1,label:'Start'},selectedTool:'slingshot'};
+
+    function mulberry32(seed){return function(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;};}
+    function randInt(a,b){return Math.floor(rng()*(b-a+1))+a;}
+    function choice(a){return a[Math.floor(rng()*a.length)];}
+    function cssVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+    function same(a,b){return a.x===b.x&&a.y===b.y;}
+
+    /* ---- sound: tiny WebAudio blips, no asset files ---- */
+    let audioCtx=null;
+    function beep(freq,dur,type,vol){
+      if(!Profile.sound)return;
+      try{
+        if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+        if(audioCtx.state==='suspended')audioCtx.resume();
+        const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+        o.type=type||'square';o.frequency.value=freq;
+        g.gain.setValueAtTime(vol||0.05,audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.0001,audioCtx.currentTime+(dur||0.12));
+        o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+(dur||0.12)+0.02);
+      }catch(e){}
+    }
+    const SFX={
+      correct(){beep(660,0.09,'square',0.05);setTimeout(()=>beep(880,0.12,'square',0.05),80);},
+      snap(){beep(880,0.07,'square',0.05);setTimeout(()=>beep(1175,0.07,'square',0.05),70);setTimeout(()=>beep(1568,0.14,'square',0.05),140);},
+      wrong(){beep(180,0.22,'sawtooth',0.045);},
+      pickup(){beep(1046,0.07,'triangle',0.05);},
+      hurt(){beep(120,0.3,'sawtooth',0.05);},
+      win(){[523,659,784,1046].forEach((f,i)=>setTimeout(()=>beep(f,0.16,'triangle',0.06),i*110));},
+      boss(){[196,164,196,262].forEach((f,i)=>setTimeout(()=>beep(f,0.2,'sawtooth',0.05),i*160));}
+    };
+
+    /* ============================================================
+       4. MAZE
+       ============================================================ */
+    class Maze{
+      constructor(n){this.n=n%2?n:n+1;this.start={x:1,y:1};this.exit=null;this.exitSide='r';
+        this.cells=Array.from({length:this.n},()=>Array.from({length:this.n},()=>({t:true,r:true,b:true,l:true,v:false})));this.generate();}
+      inBounds(x,y){return x>=0&&y>=0&&x<this.n&&y<this.n;}
+      neighbors(x,y){return [[x,y-1,'t','b'],[x+1,y,'r','l'],[x,y+1,'b','t'],[x-1,y,'l','r']].filter(([nx,ny])=>this.inBounds(nx,ny));}
+      shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+      generate(){
+        const st=this.start,stack=[st];this.cells[st.y][st.x].v=true;
+        while(stack.length){
+          const cur=stack[stack.length-1];
+          const next=this.shuffle(this.neighbors(cur.x,cur.y)).find(([nx,ny])=>!this.cells[ny][nx].v);
+          if(next){const[nx,ny,d1,d2]=next;this.cells[cur.y][cur.x][d1]=false;this.cells[ny][nx][d2]=false;this.cells[ny][nx].v=true;stack.push({x:nx,y:ny});}
+          else stack.pop();
+        }
+        for(let i=0;i<this.n;i++){this.cells[0][i].t=true;this.cells[this.n-1][i].b=true;this.cells[i][0].l=true;this.cells[i][this.n-1].r=true;}
+        const dist=this.distanceFrom(this.start);let best={d:-1,x:1,y:1,side:'r'};
+        for(let y=1;y<this.n-1;y++){if(dist[y][1]>best.d)best={d:dist[y][1],x:1,y,side:'l'};if(dist[y][this.n-2]>best.d)best={d:dist[y][this.n-2],x:this.n-2,y,side:'r'};}
+        for(let x=1;x<this.n-1;x++){if(dist[1][x]>best.d)best={d:dist[1][x],x,y:1,side:'t'};if(dist[this.n-2][x]>best.d)best={d:dist[this.n-2][x],x,y:this.n-2,side:'b'};}
+        this.exit={x:best.x,y:best.y};this.exitSide=best.side;this.cells[this.exit.y][this.exit.x][this.exitSide]=false;
+      }
+      distanceFrom(s){const INF=1e9,d=Array.from({length:this.n},()=>Array(this.n).fill(INF)),q=[{x:s.x,y:s.y}];d[s.y][s.x]=0;
+        for(let qi=0;qi<q.length;qi++){const{x,y}=q[qi],c=this.cells[y][x];
+          for(const[nx,ny,open]of[[x,y-1,!c.t],[x+1,y,!c.r],[x,y+1,!c.b],[x-1,y,!c.l]]){
+            if(!open||!this.inBounds(nx,ny))continue;
+            if(d[ny][nx]>d[y][x]+1){d[ny][nx]=d[y][x]+1;q.push({x:nx,y:ny});}}}
+        return d;}
+      openNeighbors(x,y){const c=this.cells[y][x],out=[];
+        if(!c.t&&this.inBounds(x,y-1))out.push({x,y:y-1});
+        if(!c.r&&this.inBounds(x+1,y))out.push({x:x+1,y});
+        if(!c.b&&this.inBounds(x,y+1))out.push({x,y:y+1});
+        if(!c.l&&this.inBounds(x-1,y))out.push({x:x-1,y});
+        return out;}
+      pathToExit(){const start=this.start,target=this.exit,key=p=>p.x+','+p.y,q=[{...start}],prev=new Map();prev.set(key(start),null);
+        for(let qi=0;qi<q.length;qi++){const p=q[qi];if(same(p,target))break;
+          for(const nb of this.openNeighbors(p.x,p.y)){const k=key(nb);if(prev.has(k))continue;prev.set(k,p);q.push(nb);}}
+        const tk=key(target);if(!prev.has(tk))return [];
+        const path=[];let cur={...target};while(cur){path.push(cur);cur=prev.get(key(cur));}
+        return path.reverse();}
+    }
+
+    /* ============================================================
+       5. DIFFICULTY + BEASTS
+       ============================================================ */
+    const TIERS=[
+      {key:0,name:'Lab drone',hp:1,color:'#7b8794',hot:'#a4b1bf',stepMul:1.00,wake:3},
+      {key:1,name:'Rat-bot',  hp:2,color:'#b5714a',hot:'#ff9d5c',stepMul:0.82,wake:4},
+      {key:2,name:'Cyber-cat',hp:3,color:'#a8394a',hot:'#ff4d5e',stepMul:0.66,wake:5},
+      {key:3,name:'Brain Vat',hp:5,color:'#8a48b5',hot:'#c86bff',stepMul:0.78,wake:6,boss:true}
+    ];
+    function gridForLevel(l){return [15,15,21,21,25,31,31,37,41,45,51][Math.min(l-1,10)]||51;}
+    function isBossLevel(l){return l%5===0;}
+    function tierPoolFor(l){
+      if(l<=2)return [0];
+      if(l<=4)return [0,0,1];
+      if(l<=7)return [0,1,1,2];
+      return [0,1,1,2,2];
+    }
+    function difficulty(){
+      const grid=gridForLevel(level);
+      const gates=grid<=15?3:grid<=21?4:grid<=31?5:6;
+      return {
+        grid, gates,
+        chain:chainForLevel(level),                           // problems per gate
+        enemies:Math.min(13,Math.max(1,Math.floor(level*0.85)+1)),
+        traps:Math.max(0,level-2),
+        checkpoints:level>=3?Math.min(3,1+Math.floor(level/5)):1,
+        cheese:6+level*2,
+        tools:level>=2?2+Math.floor(level/2):1
+      };
+    }
+
+    function resetPlayer(){
+      player.x=player.px=maze.start.x;player.y=player.py=maze.start.y;
+      player.from={x:player.x,y:player.y};player.to={x:player.x,y:player.y};
+      player.moving=false;player.dir={x:1,y:0};player.invis=0;
+      player.checkpoint={x:maze.start.x,y:maze.start.y,label:'Start'};
+    }
+    function startNewRun(){
+      level=Math.max(1,Settings.startLevel|0);player.cheese=0;player.ladders=0;player.slingshot=1;player.potions=0;
+      player.invis=0;player.hints=1;player.selectedTool='slingshot';
+      streak=0;bestStreakThisRun=0;retryQueue=[];
+      rng=mulberry32((Date.now()^Math.floor(Math.random()*1e9))>>>0);
+      startLevel();
+      [startOverlay,shopOverlay,practiceOverlay,scientistOverlay,statsOverlay].forEach(o=>o.classList.remove('show'));
+      state='play';
+    }
+    function startLevel(){
+      const d=difficulty();
+      maze=new Maze(d.grid);
+      resetPlayer();
+      slowMoBonus=0;
+      solvedGates=0;requiredGates=d.gates;
+      levelStats={asked:0,right:0,snap:0,timeSum:0};
+      mazeClock=0;
+      placeThings(d);
+      updateHud();
+      const tabs=tablesForLevel(level);
+      const tabTxt=tabs.length>5?`tables ${tabs[0]}-${tabs[tabs.length-1]}`:`${tabs.join('s, ')}s`;
+      message=`Level ${level}: ${requiredGates} brain gates · ${tabTxt}`;
+      messageT=3;
+      if(isBossLevel(level))SFX.boss();
+      Profile.levelReached=Math.max(Profile.levelReached,level);Profile.save();
+    }
+
+    function allReachable(){
+      const dist=maze.distanceFrom(maze.start),cells=[];
+      for(let y=1;y<maze.n-1;y++)for(let x=1;x<maze.n-1;x++)
+        if(dist[y][x]<1e9&&!same({x,y},maze.start)&&!same({x,y},maze.exit))cells.push({x,y,d:dist[y][x]});
+      return cells.sort((a,b)=>a.d-b.d);
+    }
+    function placeThings(d){
+      items=[];enemies=[];
+      const cells=allReachable();const used=new Set();const key=p=>p.x+','+p.y;
+      const reserve=p=>used.add(key(p));
+      reserve(maze.start);reserve(maze.exit);
+      const maxD=cells.length?cells[cells.length-1].d:1;
+      const take=(minFrac=.1,maxFrac=.95)=>{
+        let pool=cells.filter(c=>c.d>maxD*minFrac&&c.d<maxD*maxFrac&&!used.has(key(c)));
+        if(!pool.length)pool=cells.filter(c=>!used.has(key(c)));
+        if(!pool.length)return {x:maze.start.x,y:maze.start.y};
+        const c=choice(pool);used.add(key(c));return {x:c.x,y:c.y};
+      };
+      // Brain gates sit on the main path so they cannot be skipped.
+      const path=maze.pathToExit().filter(p=>!same(p,maze.start)&&!same(p,maze.exit));
+      let placedGates=0;
+      for(let i=0;i<d.gates;i++){
+        let idx=Math.round(((i+1)/(d.gates+1))*(path.length-1));
+        idx=Math.max(1,Math.min(path.length-2,idx));
+        let spot=path[idx],tries=0;
+        while(spot&&used.has(key(spot))&&tries<path.length){idx=(idx+1)%path.length;spot=path[idx];tries++;}
+        if(spot&&!used.has(key(spot))){
+          reserve(spot);
+          items.push({...spot,type:'gate',required:true,total:d.chain,remaining:d.chain});
+          placedGates++;
+        }
+      }
+      requiredGates=placedGates;
+      for(let i=0;i<d.cheese;i++)items.push({...take(.05,.92),type:'cheese'});
+      for(let i=0;i<d.tools;i++){const type=i%3===0?'ladder':i%3===1?'slingshot1':'potion';items.push({...take(.12,.8),type});}
+      if(level>=5&&rng()<.55)items.push({...take(.2,.8),type:'slingshot3'});
+      for(let i=0;i<d.checkpoints;i++)items.push({...take(.28,.9),type:'checkpoint',label:`CP ${i+1}`});
+      for(let i=0;i<d.traps;i++)items.push({...take(.18,.9),type:'trap'});
+      const pool=tierPoolFor(level);
+      for(let i=0;i<d.enemies;i++){
+        const pos=take(.28,.92);
+        const tier=TIERS[choice(pool)];
+        enemies.push({...pos,home:{...pos},tier:tier.key,name:tier.name,hp:tier.hp,active:false,dead:false,wake:tier.wake});
+      }
+      if(isBossLevel(level)){
+        const bpos=take(.7,.95);const t=TIERS[3];
+        enemies.push({...bpos,home:{...bpos},tier:3,name:t.name,hp:t.hp,active:false,dead:false,wake:t.wake});
+      }
+    }
+
+    /* ============================================================
+       6. MOVEMENT + TOOLS
+       ============================================================ */
+    function wallBlocks(x,y,dx,dy){const c=maze.cells[y]&&maze.cells[y][x];if(!c)return true;
+      return (dx===1&&c.r)||(dx===-1&&c.l)||(dy===1&&c.b)||(dy===-1&&c.t);}
+    function canMove(x,y,dx,dy){const c=maze.cells[y]&&maze.cells[y][x];if(!c)return false;return !wallBlocks(x,y,dx,dy);}
+    function startMove(dx,dy,ignoreWall){
+      if(state!=='play'||player.moving)return false;
+      player.dir={x:dx,y:dy};
+      if(!ignoreWall&&!canMove(player.x,player.y,dx,dy))return false;
+      const tx=player.x+dx,ty=player.y+dy;
+      if(!maze.inBounds(tx,ty))return false;
+      player.moving=true;player.from={x:player.x,y:player.y};player.to={x:tx,y:ty};player.t=0;
+      return true;
+    }
+    let touchDir=null;
+    function updatePlayer(dt){
+      if(state!=='play')return;
+      player.invis=Math.max(0,player.invis-dt);
+      if(!player.moving){
+        let dx=0,dy=0;
+        if(Keys.ArrowUp||Keys.KeyW)dy=-1;
+        else if(Keys.ArrowDown||Keys.KeyS)dy=1;
+        else if(Keys.ArrowLeft||Keys.KeyA)dx=-1;
+        else if(Keys.ArrowRight||Keys.KeyD)dx=1;
+        if(!dx&&!dy&&touchDir){dx=touchDir.x;dy=touchDir.y;}
+        if(dx||dy){player.dir={x:dx,y:dy};startMove(dx,dy,false);}
+      }
+      if(player.moving){
+        player.t+=dt/(1/player.speed);
+        if(player.t>=1){
+          player.moving=false;player.x=player.to.x;player.y=player.to.y;player.px=player.x;player.py=player.y;
+          if(player.x===maze.exit.x&&player.y===maze.exit.y){
+            if(solvedGates>=requiredGates){winLevel();return;}
+            const left=requiredGates-solvedGates;
+            message=`${left} more brain gate${left===1?'':'s'} before the exit opens.`;messageT=2.5;
+          }
+          handleTile();
+        }else{
+          player.px=player.from.x+(player.to.x-player.from.x)*player.t;
+          player.py=player.from.y+(player.to.y-player.from.y)*player.t;
+        }
+      }
+    }
+    function handleTile(){
+      for(let i=items.length-1;i>=0;i--){
+        const it=items[i];
+        if(it.x!==player.x||it.y!==player.y)continue;
+        if(it.type==='cheese'){player.cheese++;message='+1 cheese';SFX.pickup();items.splice(i,1);}
+        else if(it.type==='gate'){messageT=2;updateHud();beginBattle(null,it);return;}
+        else if(it.type==='ladder'){player.ladders++;message='Got a ladder';SFX.pickup();items.splice(i,1);}
+        else if(it.type==='slingshot1'){player.slingshot++;message='Got a slingshot shot';SFX.pickup();items.splice(i,1);}
+        else if(it.type==='slingshot3'){player.slingshot+=3;message='Rare find: 3 slingshot shots';SFX.pickup();items.splice(i,1);}
+        else if(it.type==='potion'){player.potions++;message='Picked up an invisibility potion';SFX.pickup();items.splice(i,1);}
+        else if(it.type==='checkpoint'){player.checkpoint={x:it.x,y:it.y,label:it.label||'Checkpoint'};message='Checkpoint saved';SFX.pickup();items.splice(i,1);}
+        else if(it.type==='trap'){respawn('Trap door! Back to checkpoint.');SFX.hurt();}
+      }
+      messageT=2;updateHud();checkEnemyCollision();
+    }
+    function respawn(msg){
+      player.x=player.px=player.checkpoint.x;player.y=player.py=player.checkpoint.y;
+      player.moving=false;player.invis=0;message=msg;messageT=2.5;shake=0.35;updateHud();
+    }
+
+    function updateEnemies(dt){
+      if(state!=='play')return;
+      enemyMoveClock+=dt;
+      for(const e of enemies){
+        if(e.dead)continue;
+        const d=Math.abs(e.x-player.x)+Math.abs(e.y-player.y);
+        if(!e.active&&d<=e.wake&&player.invis<=0){
+          e.active=true;message=`${e.name} woke up!`;messageT=1.5;beep(200,0.12,'sawtooth',0.04);
+        }
+      }
+      const baseStep=Math.max(.16,.52-level*.022);
+      if(enemyMoveClock<baseStep)return;
+      enemyMoveClock=0;
+      for(const e of enemies){
+        if(e.dead||!e.active||player.invis>0)continue;
+        // Faster tiers move on more ticks than slower ones.
+        if(rng()>1/(TIERS[e.tier].stepMul*1.35))continue;
+        const next=nextStepToward(e,{x:player.x,y:player.y});
+        if(next){e.x=next.x;e.y=next.y;}
+      }
+      checkEnemyCollision();
+    }
+    function nextStepToward(from,target){
+      const q=[{x:from.x,y:from.y}],prev=new Map(),key=p=>p.x+','+p.y;
+      prev.set(key(from),null);
+      for(let qi=0;qi<q.length;qi++){
+        const p=q[qi];if(same(p,target))break;
+        for(const nb of maze.openNeighbors(p.x,p.y)){const k=key(nb);if(prev.has(k))continue;prev.set(k,p);q.push(nb);}
+      }
+      const tk=key(target);if(!prev.has(tk))return null;
+      let cur=target,last=target;
+      while(prev.get(key(cur))){last=cur;cur=prev.get(key(cur));}
+      return last;
+    }
+    function checkEnemyCollision(){
+      if(player.invis>0||state!=='play')return;
+      const e=enemies.find(e=>!e.dead&&e.x===player.x&&e.y===player.y);
+      if(e)beginBattle(e,null);
+    }
+    function breakWall(x,y,dx,dy){
+      const nx=x+dx,ny=y+dy;if(!maze.inBounds(nx,ny))return false;
+      const c=maze.cells[y][x],n=maze.cells[ny][nx];
+      if(dx===1){c.r=false;n.l=false;}else if(dx===-1){c.l=false;n.r=false;}
+      else if(dy===1){c.b=false;n.t=false;}else if(dy===-1){c.t=false;n.b=false;}
+      return true;
+    }
+    function useLadder(){
+      if(state!=='play'||player.moving)return;
+      if(player.ladders<=0){message='No ladders left.';messageT=1.5;return;}
+      const dx=player.dir.x,dy=player.dir.y;
+      if(!wallBlocks(player.x,player.y,dx,dy)){message='Ladder only works facing a wall.';messageT=1.5;return;}
+      const nx=player.x+dx,ny=player.y+dy;
+      if(!maze.inBounds(nx,ny)){message='Nowhere to climb to.';messageT=1.5;return;}
+      player.ladders--;message='Ladder used: climbed one wall.';messageT=2;SFX.pickup();
+      startMove(dx,dy,true);updateHud();
+    }
+    function usePotion(){
+      if(state!=='play')return;
+      if(player.invis>0){message='Already invisible.';messageT=1.5;return;}
+      if(player.potions<=0){message='No potions left.';messageT=1.5;return;}
+      player.potions--;player.invis=7;
+      for(const e of enemies){if(!e.dead)e.active=false;}
+      message='Invisible for 7 seconds.';messageT=2.3;beep(700,0.25,'sine',0.05);updateHud();
+    }
+    function useSlingshot(){
+      if(state!=='play'||player.moving)return;
+      if(player.slingshot<=0){message='No slingshot shots left.';messageT=1.5;return;}
+      const dx=player.dir.x,dy=player.dir.y;
+      let x=player.x,y=player.y;
+      for(let step=1;step<=6;step++){
+        if(wallBlocks(x,y,dx,dy)){
+          if(step===1){player.slingshot--;breakWall(x,y,dx,dy);message='Wall cracked open.';messageT=2;burst(x+dx,y+dy,'#ffd166');beep(300,0.15,'square',0.05);updateHud();return;}
+          break;
+        }
+        x+=dx;y+=dy;
+        if(!maze.inBounds(x,y))break;
+        const e=enemies.find(e=>!e.dead&&e.x===x&&e.y===y);
+        if(e){
+          player.slingshot--;
+          // Bosses shrug off a single shot.
+          if(TIERS[e.tier].boss&&!e.hurt){e.hurt=true;message='The Brain Vat only cracked. Hit it again!';burst(e.x,e.y,'#c86bff');}
+          else{e.dead=true;message=`Slingshot hit! ${e.name} down.`;burst(e.x,e.y,'#ffd166');}
+          messageT=2;beep(420,0.16,'square',0.05);updateHud();return;
+        }
+        const oi=items.findIndex(it=>it.type==='trap'&&it.x===x&&it.y===y);
+        if(oi>=0){items.splice(oi,1);player.slingshot--;message='Trap door destroyed.';messageT=2;burst(x,y,'#ffd166');updateHud();return;}
+      }
+      message='Aim at a beast, a trap, or the wall right in front of you.';messageT=1.8;
+    }
+    function toolCount(t){return t==='ladder'?player.ladders:t==='slingshot'?player.slingshot:t==='potion'?player.potions:0;}
+    function toolLabel(t){return t==='slingshot'?'Slingshot':t==='ladder'?'Ladder':t==='potion'?'Potion':'None';}
+    function setTool(t){player.selectedTool=t;message=`Selected: ${toolLabel(t)}`;messageT=1.2;updateHud();}
+    function cycleTool(){
+      const tools=['slingshot','ladder','potion'];
+      const i=tools.indexOf(player.selectedTool);
+      for(let s=1;s<=tools.length;s++){
+        const next=tools[(i+s)%tools.length];
+        if(toolCount(next)>0){setTool(next);return;}
+      }
+      setTool(tools[(i+1)%tools.length]);
+    }
+    function useSelectedTool(){
+      if(player.selectedTool==='ladder')useLadder();
+      else if(player.selectedTool==='slingshot')useSlingshot();
+      else if(player.selectedTool==='potion')usePotion();
+    }
+
+    /* ============================================================
+       7. BATTLES — the teaching loop
+       A battle needs `hp` correct answers. A miss never ends the run:
+       it shows the fact, makes the player type it once to lock it in,
+       requeues that fact for a few questions later, and costs cheese.
+       ============================================================ */
+    function comboMultiplier(){return streak>=12?4:streak>=8?3:streak>=4?2:1;}
+
+    function beginBattle(enemy,gate){
+      if(state==='math')return;
+      state='math';
+      const tier=enemy?enemy.tier:Math.min(2,Math.floor((level-1)/4));
+      const hp=enemy?TIERS[enemy.tier].hp:(gate.remaining||gate.total||1);
+      math={enemy,gate,tier,hp,maxHp:hp,problem:null,locked:false,teach:null,hintShown:false};
+      const boss=enemy&&TIERS[enemy.tier].boss;
+      $('mathModal').classList.toggle('boss',!!boss);
+      $('mathTitle').textContent=enemy?(boss?'⚠ BRAIN VAT ⚠':`${enemy.name} caught you!`):'Brain gate';
+      $('mathPrompt').textContent=enemy
+        ? `Beat it with ${hp} correct answer${hp===1?'':'s'} in a row-ish. Misses cost cheese, not your run.`
+        : `Solve ${hp} problem${hp===1?'':'s'} to unlock this gate.`;
+      mathFeedback.textContent='';
+      mathOverlay.classList.add('show');
+      if(boss)SFX.boss();
+      nextProblem();
+    }
+
+    function renderPips(){
+      const wrap=$('hpPips');wrap.innerHTML='';
+      const boss=math.enemy&&TIERS[math.enemy.tier].boss;
+      for(let i=0;i<math.maxHp;i++){
+        const d=document.createElement('span');
+        d.className='pip'+(i<math.hp?' full':'')+(boss?' boss':'');
+        wrap.appendChild(d);
+      }
+    }
+    function renderCombo(){
+      const m=comboMultiplier();
+      const badge=$('comboBadge');
+      if(m>1){badge.style.display='';$('comboText').textContent=`x${m} · ${streak} streak`;}
+      else badge.style.display='none';
+    }
+    function nextProblem(){
+      math.problem=makeProblem(level,math.tier,false);
+      math.problem.started=performance.now();
+      math.locked=false;math.teach=null;math.hintShown=false;
+      const p=math.problem;
+      $('teachBox').style.display='none';
+      $('typeTag').className='type-tag '+(p.type==='product'?'':p.type);
+      $('typeTag').textContent={product:'Product',missing:'Missing factor',division:'Division',sequence:'Pattern',riddle:'Riddle'}[p.type];
+      if(p.type==='riddle'){
+        $('problemFace').style.display='none';
+        $('riddleFace').style.display='';
+        $('riddleFace').textContent=p.riddle;
+      }else{
+        $('riddleFace').style.display='none';
+        $('problemFace').style.display='';
+        $('problemFace').innerHTML=p.display;
+      }
+      timerFill.style.width='100%';
+      document.querySelector('.timer-bar').style.display=timerOff()?'none':'';
+      answerInput.value='';
+      renderPips();renderCombo();
+      if(!isTouch)setTimeout(()=>answerInput.focus(),40);
+    }
+
+    function submitBattleAnswer(){
+      if(state!=='math'||!math||math.locked)return;
+      const raw=answerInput.value.trim();
+      if(raw==='')return;
+      const guess=Number(raw);
+      if(math.teach){                       // locking in a missed fact
+        if(guess===math.teach.answer){
+          answerInput.value='';
+          mathFeedback.textContent='Locked in. Here comes another one.';
+          SFX.correct();
+          math.locked=true;
+          setTimeout(()=>{if(state==='math'&&math)nextProblem();},550);
+        }else{
+          mathFeedback.textContent=`Almost — type the number ${math.teach.answer}.`;
+          shakeModal();
+        }
+        return;
+      }
+      const p=math.problem;
+      const ms=performance.now()-p.started;
+      const correct=guess===p.answer;
+      math.locked=true;
+      levelStats.asked++;levelStats.timeSum+=ms;
+      Profile.record(p.a,p.b,correct,ms);
+      if(correct)handleCorrect(ms);else handleMiss(false);
+    }
+
+    function handleCorrect(ms){
+      const p=math.problem;
+      const snappy=timerOff()?(ms<=FAST_MS):(ms<=p.time*1000*0.4);
+      streak++;bestStreakThisRun=Math.max(bestStreakThisRun,streak);
+      Profile.bestStreak=Math.max(Profile.bestStreak,streak);
+      levelStats.right++;if(snappy)levelStats.snap++;
+      math.hp--;
+      const mult=comboMultiplier();
+      let earned=1*mult;
+      if(snappy){earned+=1;SFX.snap();}else SFX.correct();
+      player.cheese+=earned;
+      $('mathModal').classList.remove('flash-ok');void $('mathModal').offsetWidth;$('mathModal').classList.add('flash-ok');
+      renderPips();renderCombo();updateHud();
+      if(math.hp>0){
+        mathFeedback.textContent=snappy
+          ? `SNAP! +${earned} cheese. ${math.hp} to go.`
+          : `Correct. +${earned} cheese. ${math.hp} to go.`;
+        setTimeout(()=>{if(state==='math'&&math)nextProblem();},600);
+      }else{
+        mathFeedback.textContent=snappy?`SNAP! +${earned} cheese.`:`Correct. +${earned} cheese.`;
+        setTimeout(resolveBattle,600);
+      }
+    }
+
+    function handleMiss(timedOut){
+      const p=math.problem;
+      if(timedOut){levelStats.asked++;Profile.record(p.a,p.b,false,p.time*1000);}
+      streak=0;
+      // Requeue this fact so it comes back in a few questions.
+      retryQueue.push({a:p.a,b:p.b,due:Profile.answered+3});
+      if(retryQueue.length>6)retryQueue.shift();
+      const lost=Math.min(player.cheese,2);
+      player.cheese-=lost;
+      SFX.wrong();shakeModal();
+      math.teach={answer:p.answer};
+      $('teachBox').style.display='';
+      $('teachFact').textContent=teachLine(p);
+      $('teachHint').innerHTML=hintFor(p.a,p.b)+
+        `<br><b style="color:var(--gold)">Type ${p.answer} and press ✓ to continue.</b>`;
+      mathFeedback.textContent=(timedOut?'Time! ':'Not this time. ')+(lost?`-${lost} cheese. `:'')+'Type the answer to carry on.';
+      answerInput.value='';
+      timerFill.style.width='0%';
+      renderCombo();updateHud();
+      math.locked=false;
+      if(!isTouch)setTimeout(()=>answerInput.focus(),40);
+    }
+    function teachLine(p){
+      if(p.type==='division')return `${p.a*p.b} ÷ ${p.a} = ${p.answer}`;
+      if(p.type==='missing')return `${p.a} × ${p.b} = ${p.a*p.b}`;
+      if(p.type==='sequence')return `Counting by ${p.a} → the answer is ${p.answer}`;
+      if(p.type==='riddle')return `${p.a} × ${p.b} = ${p.a*p.b}  (answer: ${p.answer})`;
+      return `${p.a} × ${p.b} = ${p.answer}`;
+    }
+    function shakeModal(){
+      const m=$('mathModal');m.classList.remove('flash-bad');void m.offsetWidth;m.classList.add('flash-bad');
+    }
+    function showHint(){
+      if(state!=='math'||!math||math.teach)return;
+      if(math.hintShown){return;}
+      if(player.hints<=0){mathFeedback.textContent='No hint chips left. Buy one in the shop.';return;}
+      player.hints--;math.hintShown=true;
+      mathFeedback.textContent='💡 '+hintFor(math.problem.a,math.problem.b);
+      updateHud();
+    }
+
+    function resolveBattle(){
+      const bonusTools=()=>{
+        const reward=rng()<.5?'slingshot':'ladder';
+        if(reward==='slingshot')player.slingshot+=1;else player.ladders+=1;
+        return reward;
+      };
+      if(math.enemy){
+        math.enemy.dead=true;
+        const boss=TIERS[math.enemy.tier].boss;
+        const prize=boss?12:(2+math.enemy.tier*2);
+        player.cheese+=prize;
+        const reward=bonusTools();
+        if(boss){player.potions+=1;player.hints+=1;}
+        message=boss?`BRAIN VAT DESTROYED! +${prize} cheese, +1 potion, +1 hint.`:`${math.enemy.name} defeated. +${prize} cheese, +1 ${reward}.`;
+        burst(math.enemy.x,math.enemy.y,boss?'#c86bff':'#37d67a');
+        SFX.win();
+      }else{
+        solvedGates++;
+        items=items.filter(it=>it!==math.gate);
+        player.cheese+=3;
+        const reward=bonusTools();
+        message=`Gate open! ${solvedGates}/${requiredGates} · +3 cheese, +1 ${reward}.`;
+        burst(player.x,player.y,'#37d67a');
+        SFX.win();
+      }
+      messageT=2.6;
+      mathOverlay.classList.remove('show');
+      state='play';math=null;updateHud();
+    }
+
+    function updateMath(dt){
+      if(state!=='math'||!math||math.locked||math.teach)return;
+      if(timerOff()){timerFill.style.width='100%';return;}
+      math.problem.left-=dt;
+      timerFill.style.width=Math.max(0,(math.problem.left/math.problem.time)*100)+'%';
+      if(math.problem.left<=1.5&&math.problem.left+dt>1.5)beep(300,0.08,'square',0.04);
+      if(math.problem.left<=0){math.locked=true;handleMiss(true);}
+    }
+
+    function winLevel(){
+      state='scientist';
+      scientistOverlay.classList.add('show');
+      const acc=levelStats.asked?Math.round(levelStats.right/levelStats.asked*100):100;
+      const avg=levelStats.asked?(levelStats.timeSum/levelStats.asked/1000).toFixed(1):'0.0';
+      const mz=Profile.recordMaze(level,mazeClock);
+      $('scientistTitle').textContent=mz.isNew&&mz.runs>1?'A new record!':
+        (acc>=90?'Impossible! Perfect mouse!':'Very clever, mouse!');
+      $('scientistText').textContent=isBossLevel(level)
+        ? 'You wrecked my Brain Vat. The next maze will not be so kind...'
+        : "Let's see if you can solve my next maze!";
+      $('scientistStats').innerHTML=
+        `<b>Maze time: ${fmtClock(mazeClock)}</b>`+
+        (mz.runs>1?` · best ${fmtClock(mz.best)}${mz.isNew?' <b style="color:var(--success)">NEW BEST</b>':''} · avg ${fmtClock(mz.avg)}`:' · first run on this level')+'<br>'+
+        `Level ${level} · ${levelStats.right}/${levelStats.asked} correct (${acc}%) · ${levelStats.snap} snap answers · avg ${avg}s per problem<br>`+
+        `Best streak this run: ${bestStreakThisRun} · 🧀 ${player.cheese}`+
+        (isBossLevel(level+1)?'<br><b style="color:var(--boss)">Next level: BOSS — a Brain Vat is waiting.</b>':'');
+      SFX.win();
+    }
+    function continueLevel(){
+      level++;
+      scientistOverlay.classList.remove('show');shopOverlay.classList.remove('show');
+      state='play';startLevel();
+    }
+
+    /* ============================================================
+       8. SHOP / PRACTICE / PROGRESS
+       ============================================================ */
+    const SHOP={
+      ladder:{cost:3,label:'ladder'},slingshot:{cost:4,label:'slingshot shot'},
+      slingshot3:{cost:10,label:'3-shot bundle'},potion:{cost:5,label:'invisibility potion'},
+      slowmo:{cost:8,label:'slow-mo serum'},hint:{cost:4,label:'hint chip'}
+    };
+    function openShop(){
+      if(state==='math'||state==='scientist'||state==='practice')return;
+      previousState=(state==='shop'||state==='start')?'play':state;
+      shopOverlay.classList.add('show');$('shopMessage').textContent='';state='shop';updateShop();
+    }
+    function closeShop(){
+      shopOverlay.classList.remove('show');
+      if(!startOverlay.classList.contains('show')&&!scientistOverlay.classList.contains('show'))state='play';
+    }
+    function updateShop(){
+      $('shopCheese').textContent=player.cheese;
+      document.querySelectorAll('[data-buy]').forEach(btn=>{
+        const item=SHOP[btn.dataset.buy];
+        btn.disabled=player.cheese<item.cost;
+        btn.textContent=player.cheese>=item.cost?`Buy ${item.label}`:`Need ${item.cost-player.cheese} more 🧀`;
+      });
+      updateHud();
+    }
+    function buyShopItem(kind){
+      const item=SHOP[kind];if(!item)return;
+      if(player.cheese<item.cost){$('shopMessage').textContent=`Not enough cheese for a ${item.label}.`;updateShop();return;}
+      player.cheese-=item.cost;
+      if(kind==='ladder'){player.ladders++;setTool('ladder');$('shopMessage').textContent='Bought +1 ladder.';}
+      else if(kind==='slingshot'){player.slingshot++;setTool('slingshot');$('shopMessage').textContent='Bought +1 shot.';}
+      else if(kind==='slingshot3'){player.slingshot+=3;setTool('slingshot');$('shopMessage').textContent='Bought +3 shots.';}
+      else if(kind==='potion'){player.potions++;setTool('potion');$('shopMessage').textContent='Bought +1 potion.';}
+      else if(kind==='slowmo'){slowMoBonus+=3;$('shopMessage').textContent='Slow-Mo Serum active: +3s on every problem this level.';}
+      else if(kind==='hint'){player.hints++;$('shopMessage').textContent='Bought +1 hint chip. Press H during a battle.';}
+      SFX.pickup();updateShop();
+    }
+
+    /* ---- practice lab ---- */
+    function openPractice(){
+      if(state==='math'||state==='scientist')return;
+      previousState=(state==='shop'||state==='start')?'play':state;
+      shopOverlay.classList.remove('show');practiceOverlay.classList.add('show');state='practice';
+      if(!practice)practice={problem:null,correct:0,total:0,right:0};
+      buildTableChips('practiceTables');
+      newPracticeProblem();
+    }
+    function closePractice(){
+      practiceOverlay.classList.remove('show');
+      if(!startOverlay.classList.contains('show')&&!scientistOverlay.classList.contains('show'))
+        state=previousState==='paused'?'paused':'play';
+      updateHud();
+    }
+    function activePracticeTables(){
+      return (practiceTables&&practiceTables.length)?practiceTables:tablesForLevel(Math.max(level,3));
+    }
+    function newPracticeProblem(){
+      if(!practice)practice={problem:null,correct:0,total:0,right:0};
+      const f=pickFact(activePracticeTables());
+      let a=f.a,b=f.b;if(rng()<.5){const t=a;a=b;b=t;}
+      practice.problem={a,b,answer:a*b,started:performance.now()};
+      $('practiceProblem').textContent=`${a} × ${b}`;
+      practiceAnswer.value='';$('practiceFeedback').textContent='';
+      updatePracticeStats();
+      if(!isTouch)setTimeout(()=>practiceAnswer.focus(),40);
+    }
+    function updatePracticeStats(){
+      $('practiceStats').textContent=`Streak: ${practice.correct} · ${practice.right}/${practice.total} correct this session`;
+    }
+    function submitPracticeAnswer(){
+      if(state!=='practice'||!practice||!practice.problem)return;
+      const raw=practiceAnswer.value.trim();if(raw==='')return;
+      const p=practice.problem;
+      const ms=performance.now()-p.started;
+      const guess=Number(raw);
+      practice.total++;
+      const ok=guess===p.answer;
+      Profile.record(p.a,p.b,ok,ms);
+      if(ok){
+        practice.correct++;practice.right++;
+        let msg=ms<=FAST_MS?'SNAP! Fast.':'Correct.';
+        if(practice.correct>0&&practice.correct%5===0){player.cheese++;msg+=' 5 in a row: +1 cheese!';updateHud();}
+        $('practiceFeedback').textContent=msg;
+        ms<=FAST_MS?SFX.snap():SFX.correct();
+        setTimeout(newPracticeProblem,450);
+      }else{
+        practice.correct=0;
+        $('practiceFeedback').textContent=`${p.a} × ${p.b} = ${p.answer}. ${hintFor(p.a,p.b)}`;
+        SFX.wrong();
+        retryQueue.push({a:p.a,b:p.b,due:Profile.answered+2});
+      }
+      updatePracticeStats();
+    }
+    function buildTableChips(containerId){
+      const wrap=$(containerId);if(!wrap)return;
+      wrap.innerHTML='';
+      const all=[2,3,4,5,6,7,8,9,10,11,12];
+      const sel=practiceTables||[];
+      const mk=(label,on,fn)=>{
+        const b=document.createElement('button');
+        b.className='chip'+(on?' on':'');b.textContent=label;
+        b.addEventListener('click',fn);wrap.appendChild(b);
+      };
+      mk('Adaptive (all)',!practiceTables||!practiceTables.length,()=>{practiceTables=null;buildTableChips(containerId);newPracticeProblem();});
+      for(const t of all){
+        mk(`${t}s`,sel.indexOf(t)>=0,()=>{
+          if(!practiceTables)practiceTables=[];
+          const i=practiceTables.indexOf(t);
+          if(i>=0)practiceTables.splice(i,1);else practiceTables.push(t);
+          if(!practiceTables.length)practiceTables=null;
+          buildTableChips(containerId);newPracticeProblem();
+        });
+      }
+    }
+
+    /* ---- progress dashboard ---- */
+    function boxColor(r){
+      if(!r||!r.n)return '#1c2430';
+      return BOX_COLORS[Math.max(0,Math.min(5,r.box))];
+    }
+    function openStats(){
+      if(state==='math')return;
+      previousState=(state==='shop'||state==='start')?'play':state;
+      statsOverlay.classList.add('show');
+      if(state!=='start')state='stats';
+      renderStats();
+    }
+    function closeStats(){
+      statsOverlay.classList.remove('show');
+      if(startOverlay.classList.contains('show')){state='start';return;}
+      if(!scientistOverlay.classList.contains('show'))state=previousState==='paused'?'paused':'play';
+    }
+    function renderStats(){
+      const grid=$('heatGrid');grid.innerHTML='';
+      const head=document.createElement('div');head.className='hd';head.textContent='×';grid.appendChild(head);
+      for(let b=MIN_F;b<=MAX_F;b++){const d=document.createElement('div');d.className='hd';d.textContent=b;grid.appendChild(d);}
+      let seen=0,mastered=0,shaky=[],totalBest=0,bestCount=0;
+      for(let a=MIN_F;a<=MAX_F;a++){
+        const rowh=document.createElement('div');rowh.className='hd';rowh.textContent=a;grid.appendChild(rowh);
+        for(let b=MIN_F;b<=MAX_F;b++){
+          const r=Profile.facts[factKey(a,b)];
+          const d=document.createElement('div');
+          d.style.background=boxColor(r);
+          d.title=`${a} × ${b} = ${a*b}`+(r?` — box ${r.box}, ${r.ok}/${r.n} right`:' — not seen yet');
+          if(r&&r.n){
+            seen++;
+            if(r.box>=5)mastered++;
+            if(r.box<=1)shaky.push({a,b,score:r.miss*10-r.box});
+            if(r.best){totalBest+=r.best;bestCount++;}
+          }
+          grid.appendChild(d);
+        }
+      }
+      const totalFacts=(MAX_F-MIN_F+1)*(MAX_F-MIN_F+1);
+      const uniqueShaky=[];const seenKeys={};
+      shaky.sort((x,y)=>y.score-x.score);
+      for(const s of shaky){const k=factKey(s.a,s.b);if(seenKeys[k])continue;seenKeys[k]=1;uniqueShaky.push(s);if(uniqueShaky.length>=8)break;}
+      $('statRow').innerHTML=
+        `<div class="stat-box"><b>${Profile.answered}</b><span>problems answered</span></div>`+
+        `<div class="stat-box"><b>${Math.round(seen/totalFacts*100)}%</b><span>facts practiced</span></div>`+
+        `<div class="stat-box"><b>${Math.round(mastered/totalFacts*100)}%</b><span>mastered cold</span></div>`+
+        `<div class="stat-box"><b>${bestCount?(totalBest/bestCount/1000).toFixed(1)+'s':'—'}</b><span>avg best time</span></div>`+
+        `<div class="stat-box"><b>${Profile.bestStreak}</b><span>best streak</span></div>`+
+        `<div class="stat-box"><b>${Profile.levelReached}</b><span>deepest level</span></div>`;
+      $('worstList').innerHTML=uniqueShaky.length
+        ? uniqueShaky.map(s=>`<span>${s.a} × ${s.b}</span>`).join('')
+        : '<span style="background:rgba(55,214,122,.14);border-color:rgba(55,214,122,.4);color:#a8f0c6">Nothing shaky yet — keep going!</span>';
+      const lvls=Object.keys(Profile.mazes).map(Number).sort((a,b)=>a-b);
+      let totalRuns=0,totalSec=0;
+      $('mazeList').innerHTML=lvls.length
+        ? lvls.map(l=>{const m=Profile.mazes[l];totalRuns+=m.runs;totalSec+=m.total;
+            return `<span style="background:rgba(118,169,255,.12);border-color:rgba(118,169,255,.4);color:#cfe0f5" title="${m.runs} run${m.runs===1?'':'s'}, average ${fmtClock(m.total/m.runs)}">L${l} · ${fmtClock(m.best)}</span>`;}).join('')
+        : '<span style="background:rgba(159,176,193,.1);border-color:rgba(159,176,193,.3);color:#9fb0c1">No mazes finished yet</span>';
+      if(totalRuns){
+        $('statRow').innerHTML+=
+          `<div class="stat-box"><b>${totalRuns}</b><span>mazes cleared</span></div>`+
+          `<div class="stat-box"><b>${fmtClock(totalSec/totalRuns)}</b><span>avg maze time</span></div>`;
+      }
+    }
+
+    function fmtClock(sec){
+      const m=Math.floor(sec/60),r=Math.floor(sec%60);
+      return m+':'+String(r).padStart(2,'0');
+    }
+    function updateHud(){
+      $('hudTime').textContent=fmtClock(mazeClock);
+      $('hudLevel').textContent=level+(isBossLevel(level)?' ☠':'');
+      $('hudGates').textContent=`${solvedGates}/${requiredGates}`;
+      $('hudCheese').textContent=player.cheese;
+      const st=$('hudStreak');st.textContent=streak+(comboMultiplier()>1?` (x${comboMultiplier()})`:'');
+      st.classList.toggle('hot',comboMultiplier()>1);
+      $('hudLadders').textContent=player.ladders;
+      $('hudSlingshot').textContent=player.slingshot;
+      $('hudInvis').textContent=player.invis>0?Math.ceil(player.invis)+'s':player.potions;
+      $('hudTool').textContent=toolLabel(player.selectedTool)+` (${toolCount(player.selectedTool)})`;
+      document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('on',b.dataset.tool===player.selectedTool));
+    }
+
+    /* ============================================================
+       9. RENDERING
+       ============================================================ */
+    function fitCanvas(){
+      const target=Math.min(window.innerWidth*.94,window.innerHeight*.72,900);
+      const dpr=window.devicePixelRatio||1;
+      canvas.style.width=target+'px';canvas.style.height=target+'px';
+      canvas.width=Math.floor(target*dpr);canvas.height=Math.floor(target*dpr);
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+    }
+    function draw(){
+      fitCanvas();
+      const r=canvas.getBoundingClientRect(),w=r.width,h=r.height;
+      ctx.clearRect(0,0,w,h);
+      if(!maze){drawStartCanvas(w,h);return;}
+      ctx.save();
+      if(shake>0){ctx.translate((Math.random()-.5)*shake*18,(Math.random()-.5)*shake*18);}
+      drawMaze(w,h);drawItems(w);drawEnemies(w);drawMouse(w/maze.n);drawParticles(w);
+      ctx.restore();
+    }
+    function drawStartCanvas(w,h){
+      ctx.fillStyle='#0b0f14';ctx.fillRect(0,0,w,h);
+      ctx.fillStyle='#e8edf2';ctx.textAlign='center';
+      ctx.font=`900 ${Math.floor(w*.07)}px system-ui`;ctx.fillText('mouse brainz',w/2,h*.44);
+      ctx.fillStyle='#9fb0c1';
+      ctx.font=`700 ${Math.floor(w*.028)}px system-ui`;ctx.fillText('v2 · times table escape',w/2,h*.51);
+      ctx.font=`700 ${Math.floor(w*.024)}px system-ui`;ctx.fillText('Click Start',w/2,h*.60);
+    }
+    function drawMaze(w,h){
+      const n=maze.n,cell=w/n;
+      ctx.fillStyle='#0d1520';ctx.fillRect(0,0,w,h);
+      ctx.strokeStyle=cssVar('--grid');ctx.lineWidth=1;ctx.beginPath();
+      for(let i=0;i<=n;i++){const p=Math.round(i*cell)+.5;ctx.moveTo(.5,p);ctx.lineTo(w-.5,p);ctx.moveTo(p,.5);ctx.lineTo(p,h-.5);}
+      ctx.stroke();
+      ctx.strokeStyle=cssVar('--walls');ctx.lineWidth=Math.max(2,Math.floor(cell*.14));ctx.lineCap='square';ctx.beginPath();
+      for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+        const c=maze.cells[y][x],x0=x*cell,y0=y*cell,x1=x0+cell,y1=y0+cell;
+        if(c.t){ctx.moveTo(x0,y0);ctx.lineTo(x1,y0);}
+        if(c.r){ctx.moveTo(x1,y0);ctx.lineTo(x1,y1);}
+        if(c.b){ctx.moveTo(x0,y1);ctx.lineTo(x1,y1);}
+        if(c.l){ctx.moveTo(x0,y0);ctx.lineTo(x0,y1);}
+      }
+      ctx.stroke();
+      drawTile(maze.start.x,maze.start.y,cell,'rgba(40,199,111,.28)','S');
+      const exitOpen=solvedGates>=requiredGates;
+      drawTile(maze.exit.x,maze.exit.y,cell,exitOpen?'rgba(55,214,122,.5)':'rgba(255,122,144,.34)','E');
+    }
+    function drawTile(x,y,cell,color,label){
+      const x0=x*cell+cell*.12,y0=y*cell+cell*.12,w=cell*.76;
+      ctx.save();ctx.fillStyle=color;roundRect(x0,y0,w,w,Math.max(3,cell*.14),true,false);
+      ctx.strokeStyle='rgba(255,255,255,.32)';ctx.lineWidth=Math.max(1,cell*.035);
+      roundRect(x0,y0,w,w,Math.max(3,cell*.14),false,true);
+      if(label){ctx.fillStyle='#06101d';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.font=`950 ${Math.max(10,cell*.42)}px system-ui`;ctx.fillText(label,x0+w/2,y0+w/2+cell*.015);}
+      ctx.restore();
+    }
+    function drawItems(w){
+      const cell=w/maze.n;
+      for(const it of items){
+        const cx=(it.x+.5)*cell,cy=(it.y+.5)*cell,s=cell*.34;
+        ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.font=`${Math.max(12,cell*.52)}px serif`;
+        if(it.type==='cheese'){
+          ctx.fillStyle='#ffe066';ctx.strokeStyle='#5d4200';ctx.lineWidth=Math.max(1,cell*.04);
+          ctx.beginPath();ctx.moveTo(cx-s*.8,cy-s*.55);ctx.lineTo(cx+s*.85,cy);ctx.lineTo(cx-s*.8,cy+s*.55);ctx.closePath();ctx.fill();ctx.stroke();
+          ctx.fillStyle='#f2b705';
+          for(const hp of [[-.35,-.15,.11],[.1,.05,.09],[-.45,.25,.07]]){ctx.beginPath();ctx.arc(cx+hp[0]*s,cy+hp[1]*s,s*hp[2]*2,0,Math.PI*2);ctx.fill();}
+        }else if(it.type==='gate'){
+          const pulse=1+Math.sin(performance.now()/380)*0.07;
+          ctx.fillStyle='#ffd166';ctx.strokeStyle='#111823';ctx.lineWidth=2;
+          ctx.beginPath();ctx.arc(cx,cy,s*pulse,0,Math.PI*2);ctx.fill();ctx.stroke();
+          ctx.fillStyle='#06101d';ctx.font=`900 ${Math.max(12,cell*.42)}px system-ui`;ctx.fillText('?',cx,cy);
+          if(it.remaining>1){ctx.fillStyle='#111823';ctx.font=`900 ${Math.max(8,cell*.22)}px system-ui`;ctx.fillText(String(it.remaining),cx+s*.75,cy-s*.7);}
+        }else if(it.type==='ladder')ctx.fillText('🪜',cx,cy);
+        else if(it.type==='slingshot1'||it.type==='slingshot3')ctx.fillText('🎯',cx,cy);
+        else if(it.type==='potion')ctx.fillText('🧪',cx,cy);
+        else if(it.type==='checkpoint'){
+          ctx.fillStyle='#37d67a';ctx.beginPath();ctx.arc(cx,cy,s,0,Math.PI*2);ctx.fill();
+          ctx.fillStyle='#06101d';ctx.font=`900 ${Math.max(10,cell*.28)}px system-ui`;ctx.fillText('CP',cx,cy);
+        }else if(it.type==='trap'){
+          ctx.fillStyle='#111823';ctx.strokeStyle='#ff4d5e';ctx.lineWidth=3;
+          ctx.beginPath();ctx.rect(cx-s,cy-s,s*2,s*2);ctx.fill();ctx.stroke();
+          ctx.fillStyle='#ff4d5e';ctx.font=`900 ${Math.max(12,cell*.42)}px system-ui`;ctx.fillText('!',cx,cy);
+        }
+        ctx.restore();
+      }
+    }
+    function drawEnemies(w){
+      const cell=w/maze.n;
+      for(const e of enemies){
+        if(e.dead)continue;
+        const T=TIERS[e.tier];
+        const boss=!!T.boss;
+        const cx=(e.x+.5)*cell,cy=(e.y+.5)*cell,r=cell*(boss?.36:.28);
+        ctx.save();
+        ctx.fillStyle=e.active?T.hot:T.color;
+        ctx.strokeStyle='#111823';ctx.lineWidth=Math.max(2,cell*.06);
+        ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fill();ctx.stroke();
+        ctx.fillStyle='white';ctx.beginPath();
+        ctx.arc(cx-r*.35,cy-r*.1,r*.18,0,Math.PI*2);ctx.arc(cx+r*.35,cy-r*.1,r*.18,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#111823';ctx.beginPath();
+        ctx.arc(cx-r*.35,cy-r*.1,r*.08,0,Math.PI*2);ctx.arc(cx+r*.35,cy-r*.1,r*.08,0,Math.PI*2);ctx.fill();
+        // hp pips above the beast so difficulty is readable at a glance
+        const pips=T.hp;
+        if(pips>1){
+          ctx.fillStyle=T.hot;
+          for(let i=0;i<pips;i++){
+            const px=cx-(pips-1)*cell*.07+i*cell*.14;
+            ctx.beginPath();ctx.arc(px,cy-r-cell*.12,cell*.045,0,Math.PI*2);ctx.fill();
+          }
+        }
+        if(e.active){
+          ctx.strokeStyle=boss?'#e0b3ff':'#ffd166';ctx.lineWidth=2;
+          ctx.beginPath();ctx.arc(cx,cy,r*1.55+Math.sin(performance.now()/200)*cell*.03,0,Math.PI*2);ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
+    function drawMouse(cell){
+      const cx=(player.px+.5)*cell,cy=(player.py+.5)*cell,r=cell*.32;
+      const ang=Math.atan2(player.dir.y,player.dir.x),mo=.35+.1*Math.sin(performance.now()*.004);
+      ctx.save();
+      if(player.invis>0)ctx.globalAlpha=.4;
+      ctx.lineWidth=Math.max(2,cell*.08);ctx.strokeStyle=cssVar('--mouse-accent');
+      ctx.beginPath();ctx.moveTo(cx-Math.cos(ang)*r*.8,cy-Math.sin(ang)*r*.8);
+      ctx.lineTo(cx+Math.cos(ang+Math.PI)*r*1.7,cy+Math.sin(ang+Math.PI)*r*1.7);ctx.stroke();
+      ctx.fillStyle=cssVar('--mouse');ctx.strokeStyle=cssVar('--mouse-stroke');ctx.lineWidth=Math.max(1.5,cell*.05);
+      ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,ang-mo,ang+mo,false);ctx.closePath();ctx.fill();ctx.stroke();
+      for(const ea of [ang-Math.PI/2,ang+Math.PI/2]){
+        ctx.fillStyle=cssVar('--mouse-accent');ctx.beginPath();
+        ctx.arc(cx+Math.cos(ea)*r*.75,cy+Math.sin(ea)*r*.75,r*.3,0,Math.PI*2);ctx.fill();ctx.stroke();
+      }
+      ctx.fillStyle=cssVar('--eye-blue');ctx.beginPath();
+      ctx.arc(cx+Math.cos(ang)*r*.25+Math.cos(ang-Math.PI/2)*r*.15,cy+Math.sin(ang)*r*.25+Math.sin(ang-Math.PI/2)*r*.15,r*.12,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=cssVar('--mouse-accent');ctx.beginPath();
+      ctx.arc(cx+Math.cos(ang)*r*.98,cy+Math.sin(ang)*r*.98,r*.1,0,Math.PI*2);ctx.fill();
+      ctx.restore();
+    }
+    function drawParticles(w){
+      const cell=w/maze.n;
+      for(const p of particles){
+        ctx.save();ctx.globalAlpha=Math.max(0,p.t*2);
+        ctx.strokeStyle=p.color;ctx.lineWidth=3;
+        const rad=(0.5-p.t)*cell*2.2;
+        ctx.beginPath();ctx.arc((p.x+.5)*cell,(p.y+.5)*cell,Math.max(1,rad),0,Math.PI*2);ctx.stroke();
+        ctx.restore();
+      }
+    }
+    /* The announcement bar lives above the maze in the DOM now, so it can
+       never cover the top corridors. */
+    let bannerShown='';
+    function syncBanner(){
+      const el=$('banner');
+      if(messageT>0&&message){
+        if(bannerShown!==message){
+          bannerShown=message;
+          el.textContent=message;
+          el.className='banner show'+
+            (/\+\d|Gate open|defeated|Checkpoint|SNAP|Correct/i.test(message)?' good':
+             /Trap|woke up|Bad |No |cannot|Not /i.test(message)?' bad':
+             /cheese|Ladder|Slingshot|Invisib|Selected|Rare/i.test(message)?' gold':'');
+        }
+      }else if(bannerShown!==''){
+        bannerShown='';el.className='banner';
+      }
+    }
+    function roundRect(x,y,w,h,r,fill,stroke){
+      ctx.beginPath();ctx.moveTo(x+r,y);
+      ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+      ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+      if(fill)ctx.fill();if(stroke)ctx.stroke();
+    }
+    function burst(x,y,color){particles.push({x,y,color,t:.5});}
+    function updateParticles(dt){particles=particles.filter(p=>(p.t-=dt)>0);}
+
+    /* ============================================================
+       10. INPUT + WIRING
+       ============================================================ */
+    const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
+    if(isTouch){
+      $('touchUI').classList.add('show');
+      $('numpad').classList.add('show');
+      answerInput.setAttribute('readonly','readonly');
+      practiceAnswer.removeAttribute('readonly');
+      $('helpNote').textContent='Tap the arrows to move, or swipe the maze. Pick a tool then press USE. Answer with the number pad. The ⏱ button turns the countdown on and off any time.';
+    }
+    function typing(){
+      const a=document.activeElement;
+      return a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA');
+    }
+
+    addEventListener('keydown',e=>{
+      // movement keys only matter while playing
+      if(Object.prototype.hasOwnProperty.call(Keys,e.code)){
+        if(state==='play'){Keys[e.code]=true;e.preventDefault();}
+        return;
+      }
+      if(e.code==='Enter'){
+        if(state==='math'){e.preventDefault();submitBattleAnswer();return;}
+        if(state==='practice'){e.preventDefault();submitPracticeAnswer();return;}
+        if(state==='scientist'){e.preventDefault();continueLevel();return;}
+        if(state==='start'){e.preventDefault();startNewRun();return;}
+        return;
+      }
+      if(e.code==='Escape'){
+        e.preventDefault();
+        if(state==='practice'){closePractice();return;}
+        if(state==='shop'){closeShop();return;}
+        if(state==='stats'){closeStats();return;}
+        if(state==='play'){state='paused';$('pauseBtn').textContent='Resume';message='Paused';messageT=999;return;}
+        if(state==='paused'){state='play';$('pauseBtn').textContent='Pause';messageT=0;return;}
+        return;
+      }
+      if(state==='math'){
+        if(e.code==='KeyH'){e.preventDefault();showHint();}
+        if(e.code==='KeyT'){e.preventDefault();toggleTimer();}
+        return;                                  // no other shortcuts mid-battle
+      }
+      if(e.code==='KeyT'&&!typing()){e.preventDefault();toggleTimer();return;}
+      if(typing())return;                        // never hijack a text field
+      if(e.code==='KeyP'){e.preventDefault();state==='practice'?closePractice():openPractice();return;}
+      if(e.code==='KeyB'||e.code==='KeyO'){e.preventDefault();state==='shop'?closeShop():openShop();return;}
+      if(e.code==='KeyM'){e.preventDefault();state==='stats'?closeStats():openStats();return;}
+      if(state!=='play')return;
+      if(e.code==='Tab'){e.preventDefault();cycleTool();}
+      if(e.code==='Space'){e.preventDefault();useSelectedTool();}
+      if(e.code==='KeyF'){setTool('slingshot');useSlingshot();}
+      if(e.code==='KeyL'){setTool('ladder');useLadder();}
+      if(e.code==='KeyI'){setTool('potion');usePotion();}
+    });
+    addEventListener('keyup',e=>{
+      if(Object.prototype.hasOwnProperty.call(Keys,e.code)){Keys[e.code]=false;}
+    });
+    addEventListener('blur',()=>{for(const k in Keys)Keys[k]=false;touchDir=null;});
+
+    /* ---- touch: d-pad, swipe, numpad ---- */
+    document.querySelectorAll('[data-move]').forEach(btn=>{
+      const dirs={up:{x:0,y:-1},down:{x:0,y:1},left:{x:-1,y:0},right:{x:1,y:0}};
+      const d=dirs[btn.dataset.move];
+      const on=e=>{e.preventDefault();touchDir=d;player.dir=d;};
+      const off=e=>{e.preventDefault();touchDir=null;};
+      btn.addEventListener('touchstart',on,{passive:false});
+      btn.addEventListener('touchend',off,{passive:false});
+      btn.addEventListener('touchcancel',off,{passive:false});
+      btn.addEventListener('mousedown',on);
+      btn.addEventListener('mouseup',off);
+      btn.addEventListener('mouseleave',off);
+    });
+    document.querySelectorAll('[data-tool]').forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
+    $('touchUse').addEventListener('click',()=>useSelectedTool());
+
+    let swipeStart=null;
+    canvas.addEventListener('touchstart',e=>{
+      const t=e.changedTouches[0];swipeStart={x:t.clientX,y:t.clientY};
+    },{passive:true});
+    canvas.addEventListener('touchend',e=>{
+      if(!swipeStart||state!=='play')return;
+      const t=e.changedTouches[0];
+      const dx=t.clientX-swipeStart.x,dy=t.clientY-swipeStart.y;
+      swipeStart=null;
+      if(Math.abs(dx)<18&&Math.abs(dy)<18)return;
+      const dir=Math.abs(dx)>Math.abs(dy)?{x:dx>0?1:-1,y:0}:{x:0,y:dy>0?1:-1};
+      player.dir=dir;
+      // a swipe walks until it hits a wall, which feels much better on a tablet
+      let guard=0;
+      const walk=()=>{
+        if(state!=='play'||guard++>40)return;
+        if(player.moving){requestAnimationFrame(walk);return;}
+        if(startMove(dir.x,dir.y,false))requestAnimationFrame(walk);
+      };
+      walk();
+    },{passive:true});
+
+    document.querySelectorAll('[data-np]').forEach(b=>{
+      b.addEventListener('click',()=>{
+        const v=b.dataset.np;
+        if(v==='go'){submitBattleAnswer();return;}
+        if(v==='del'){answerInput.value=answerInput.value.slice(0,-1);return;}
+        if(answerInput.value.length<4)answerInput.value+=v;
+      });
+    });
+
+    /* ---- buttons ---- */
+    $('startBtn').addEventListener('click',startNewRun);
+    $('newGameBtn').addEventListener('click',()=>{
+      startOverlay.classList.add('show');
+      [shopOverlay,practiceOverlay,statsOverlay,scientistOverlay,mathOverlay].forEach(o=>o.classList.remove('show'));
+      state='start';refreshStartScreen();
+    });
+    $('shopBtn').addEventListener('click',openShop);
+    $('practiceBtn').addEventListener('click',openPractice);
+    $('statsBtn').addEventListener('click',openStats);
+    $('closeStatsBtn').addEventListener('click',closeStats);
+    $('closeShopBtn').addEventListener('click',closeShop);
+    $('closePracticeBtn').addEventListener('click',closePractice);
+    $('practiceSubmit').addEventListener('click',submitPracticeAnswer);
+    $('practiceNext').addEventListener('click',newPracticeProblem);
+    practiceAnswer.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submitPracticeAnswer();}});
+    answerInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submitBattleAnswer();}});
+    $('submitAnswer').addEventListener('click',submitBattleAnswer);
+    document.querySelectorAll('[data-buy]').forEach(btn=>btn.addEventListener('click',()=>buyShopItem(btn.dataset.buy)));
+    $('continueBtn').addEventListener('click',continueLevel);
+    $('scientistShopBtn').addEventListener('click',()=>{scientistOverlay.classList.remove('show');state='play';openShop();});
+    $('restartFromScientist').addEventListener('click',startNewRun);
+    $('resetProfileBtn').addEventListener('click',()=>{
+      if(confirm('Erase all saved times-table progress? This cannot be undone.')){
+        Profile.reset();refreshStartScreen();
+      }
+    });
+    function syncTimerBtn(){
+      const off=timerOff();
+      $('timerBtn').textContent=off?'⏱ Off':'⏱ '+TIMER_MODES[Settings.timer].label;
+      $('timerBtn').style.borderColor=off?'#5a3040':'';
+      const bar=document.querySelector('.timer-bar');
+      if(bar)bar.style.display=(off||state!=='math')?(off?'none':''):'';
+    }
+    function toggleTimer(){
+      if(timerOff())Settings.timer=timerLastOn||'standard';
+      else{timerLastOn=Settings.timer;Settings.timer='off';}
+      Settings.save();syncTimerBtn();
+      if(state==='math'&&math&&math.problem&&!timerOff()){
+        // re-arm the clock so switching it back on mid-problem is not instant death
+        math.problem.time=Math.max(math.problem.time,3);
+        math.problem.left=math.problem.time;
+      }
+      message=timerOff()?'Countdown off — take your time.':`Countdown on (${TIMER_MODES[Settings.timer].label}).`;
+      messageT=2.2;
+      renderSetup();
+    }
+    $('timerBtn').addEventListener('click',toggleTimer);
+    $('soundBtn').addEventListener('click',()=>{
+      Profile.sound=!Profile.sound;Profile.save();
+      $('soundBtn').textContent=Profile.sound?'🔊':'🔇';
+      $('soundBtn').setAttribute('aria-pressed',String(Profile.sound));
+      if(Profile.sound)SFX.correct();
+    });
+    $('pauseBtn').addEventListener('click',()=>{
+      if(state==='shop'){closeShop();return;}
+      if(state==='play'){state='paused';$('pauseBtn').textContent='Resume';message='Paused';messageT=999;}
+      else if(state==='paused'){state='play';$('pauseBtn').textContent='Pause';messageT=0;}
+    });
+    addEventListener('resize',draw);
+
+    /* ------------------------------------------------------------
+       SETUP MENU — three independent dials plus a starting level.
+       ------------------------------------------------------------ */
+    const TYPE_LABELS={product:'× tables',missing:'Missing factor',division:'Division',sequence:'Patterns',riddle:'Story riddles'};
+    const FOCUS_PRESETS={
+      tables:{product:true,missing:true,division:false,sequence:false,riddle:false},
+      mix:{product:true,missing:true,division:true,sequence:true,riddle:true}
+    };
+    function group(title,hint){
+      const g=document.createElement('div');g.className='setup-group';
+      const h=document.createElement('h4');h.textContent=title;g.appendChild(h);
+      if(hint){const p=document.createElement('p');p.className='hint';p.textContent=hint;g.appendChild(p);}
+      return g;
+    }
+    function chipRow(parent,extraClass){
+      const r=document.createElement('div');r.className='chip-row'+(extraClass?' '+extraClass:'');
+      parent.appendChild(r);return r;
+    }
+    function chip(row,label,on,fn,title){
+      const b=document.createElement('button');
+      b.type='button';b.className='chip'+(on?' on':'');b.textContent=label;
+      if(title)b.title=title;
+      b.addEventListener('click',e=>{e.preventDefault();fn();});
+      row.appendChild(b);return b;
+    }
+    function renderSetup(){
+      const panel=$('setupPanel');if(!panel)return;
+      panel.innerHTML='';
+
+      // --- 1. problem types -------------------------------------------------
+      const g1=group('Focus area — problem types','What kinds of problems the gates and beasts throw at you.');
+      const r1=chipRow(g1);
+      chip(r1,'Times tables only',Settings.focus==='tables',()=>{
+        Settings.focus='tables';Settings.types=Object.assign({},FOCUS_PRESETS.tables);save();
+      },'Straight products and missing-factor problems only');
+      chip(r1,'Full mix',Settings.focus==='mix',()=>{
+        Settings.focus='mix';Settings.types=Object.assign({},FOCUS_PRESETS.mix);save();
+      },'All five formats');
+      chip(r1,'Custom',Settings.focus==='custom',()=>{Settings.focus='custom';save();},'Pick the formats yourself');
+      if(Settings.focus==='custom'){
+        const r1b=chipRow(g1,'sub-row');
+        for(const k in TYPE_LABELS){
+          chip(r1b,TYPE_LABELS[k],!!Settings.types[k],()=>{
+            const on=Object.keys(Settings.types).filter(t=>Settings.types[t]);
+            if(Settings.types[k]&&on.length===1)return;   // never switch them all off
+            Settings.types[k]=!Settings.types[k];save();
+          });
+        }
+      }
+      panel.appendChild(g1);
+
+      // --- 2. which facts ---------------------------------------------------
+      const g2=group('Focus area — which facts','Leave it adaptive, or lock the drill onto specific tables.');
+      const r2=chipRow(g2);
+      chip(r2,'Adaptive',!Settings.tables,()=>{Settings.tables=null;save();},
+        'Follows the difficulty preset and leans on whatever you keep missing');
+      chip(r2,'Hard facts',!!Settings.tables&&Settings.tables.join()==='3,4,6,7,8,9,11,12',
+        ()=>{Settings.tables=[3,4,6,7,8,9,11,12];save();},'The tables kids actually get stuck on');
+      const r2b=chipRow(g2,'sub-row');
+      const lbl=document.createElement('span');
+      lbl.style.cssText='font-size:12px;color:#7d8ea0;align-self:center;margin-right:2px';
+      lbl.textContent='Pick tables:';r2b.appendChild(lbl);
+      for(let t=2;t<=12;t++){
+        chip(r2b,String(t),!!Settings.tables&&Settings.tables.indexOf(t)>=0,()=>{
+          if(!Settings.tables)Settings.tables=[];
+          const i=Settings.tables.indexOf(t);
+          if(i>=0)Settings.tables.splice(i,1);else Settings.tables.push(t);
+          Settings.tables.sort((a,b)=>a-b);
+          if(!Settings.tables.length)Settings.tables=null;
+          save();
+        });
+      }
+      const r2c=chipRow(g2,'sub-row');
+      chip(r2c,(Settings.dropFreebies?'✓ ':'')+'Skip the freebies (×2, ×5, ×10, ×11)',Settings.dropFreebies,
+        ()=>{Settings.dropFreebies=!Settings.dropFreebies;save();},
+        'Drilling the 7s becomes 7×3, 7×4, 7×6, 7×7, 7×8, 7×9, 7×12');
+      panel.appendChild(g2);
+
+      // --- 3. problem difficulty -------------------------------------------
+      const g3=group('Problem difficulty','How hard the maths is. Independent of the timer and the maze.');
+      const r3=chipRow(g3);
+      for(const k of ['auto',1,2,3,4,5]){
+        const P=DIFF_PRESETS[k];
+        chip(r3,P.label,String(Settings.diff)===String(k),()=>{Settings.diff=k;save();},P.hint);
+      }
+      const d3=document.createElement('p');d3.className='hint';d3.style.margin='9px 0 0';
+      d3.textContent=DIFF_PRESETS[Settings.diff].hint+
+        (Settings.tables?' (overridden by your table picks above.)':'');
+      g3.appendChild(d3);
+      panel.appendChild(g3);
+
+      // --- 4. timer ---------------------------------------------------------
+      const g4=group('Timer speed','Separate dial. Press T or the ⏱ button to flip it on and off mid-game.');
+      const r4=chipRow(g4);
+      for(const k in TIMER_MODES){
+        chip(r4,TIMER_MODES[k].label,Settings.timer===k,()=>{
+          Settings.timer=k;if(k!=='off')timerLastOn=k;save();syncTimerBtn();
+        },TIMER_MODES[k].hint);
+      }
+      const d4=document.createElement('p');d4.className='hint';d4.style.margin='9px 0 0';
+      d4.textContent=TIMER_MODES[Settings.timer].hint;
+      g4.appendChild(d4);
+      panel.appendChild(g4);
+
+      // --- 5. starting level ------------------------------------------------
+      const g5=group('Maze starting level','Skip the small mazes. Beast count and size scale from here.');
+      const r5=chipRow(g5);
+      for(const lv of [1,3,5,8,12]){
+        chip(r5,'Level '+lv,Settings.startLevel===lv,()=>{Settings.startLevel=lv;save();},
+          lv%5===0?'Starts you on a boss level':'');
+      }
+      panel.appendChild(g5);
+
+      renderSetupSummary();
+      function save(){Settings.save();renderSetup();}
+    }
+    function renderSetupSummary(){
+      const el=$('setupSummary');if(!el)return;
+      const types=Object.keys(TYPE_LABELS).filter(k=>Settings.types[k]).map(k=>TYPE_LABELS[k]);
+      const tabs=tablesForLevel(Settings.startLevel);
+      const pool=factPool(tabs).length;
+      const tabTxt=Settings.tables?('just the '+Settings.tables.join('s, ')+'s'):
+        (DIFF_PRESETS[Settings.diff].tables?('tables '+DIFF_PRESETS[Settings.diff].tables.join(', ')):'tables that unlock as you climb');
+      el.innerHTML=`You'll get <b>${types.join(', ')}</b> drawn from <b>${tabTxt}</b>`+
+        (Settings.dropFreebies?' <b>(freebies skipped)</b>':'')+
+        ` — <b>${pool}</b> facts in the pool. Timer: <b>${TIMER_MODES[Settings.timer].label}</b>. `+
+        `Gates ask <b>${chainForLevel(Settings.startLevel)}</b> problem(s) each. Starting on <b>level ${Settings.startLevel}</b>.`;
+    }
+
+    function refreshStartScreen(){
+      $('soundBtn').textContent=Profile.sound?'🔊':'🔇';
+      let seen=0,mastered=0;
+      for(const k in Profile.facts){const r=Profile.facts[k];if(r.n){seen++;if(r.box>=5)mastered++;}}
+      const total=121;
+      $('profileNote').textContent=Profile.answered
+        ? `Saved progress: ${Profile.answered} problems answered · ${Math.round(mastered/total*100)}% of facts mastered · best streak ${Profile.bestStreak} · deepest level ${Profile.levelReached}.`
+        : 'No saved progress yet — this browser will remember how you are doing.';
+      renderSetup();
+      syncTimerBtn();
+    }
+
+    /* ============================================================
+       11. MAIN LOOP
+       ============================================================ */
+    function loop(ts){
+      if(!lastTime)lastTime=ts;
+      const dt=Math.min(.05,(ts-lastTime)/1000);
+      lastTime=ts;
+      if(state==='play'||state==='math'){
+        // Battles are part of escaping the maze, so they count. Pausing,
+        // shopping, practising and the progress screen do not.
+        if(maze)mazeClock+=dt;
+      }
+      if(state==='play'){
+        updatePlayer(dt);updateEnemies(dt);
+        messageT=Math.max(0,messageT-dt);
+        updateParticles(dt);
+        shake=Math.max(0,shake-dt);
+        updateHud();
+      }
+      updateMath(dt);
+      syncBanner();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    refreshStartScreen();
+    updateHud();
+    fitCanvas();draw();
+    requestAnimationFrame(loop);
+  })();
+  </script>
+</body>
+</html>
